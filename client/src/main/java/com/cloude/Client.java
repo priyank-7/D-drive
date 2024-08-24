@@ -47,14 +47,17 @@ public class Client {
                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
 
+            System.out.println("Connected to load balancer");
             String credentials = username + ":" + password;
             Request request = Request.builder()
                     .requestType(RequestType.AUTHENTICATE)
                     .payload(credentials)
                     .build();
             out.writeObject(request);
+            System.out.println("Sent authentication request");
 
             Response response = (Response) in.readObject();
+            System.out.println("Received response");
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 token = (String) response.getPayload();
@@ -64,7 +67,6 @@ public class Client {
                 System.out.println("Authentication failed: " + response.getPayload());
                 return false;
             }
-
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
             return false;
@@ -151,11 +153,11 @@ public class Client {
         }
     }
 
-    public static void main(String[] args) throws ClassNotFoundException {
-        Client client = new Client("localhost", 8080);
-        if (client.authenticate("user", "password")) {
-            client.uploadFile("path/to/file.txt");
-        }
-        // client.connect("localhost", 9090);
-    }
+    // public static void main(String[] args) throws ClassNotFoundException {
+    // Client client = new Client("localhost", 8080);
+    // if (client.authenticate("user", "password")) {
+    // client.uploadFile("path/to/file.txt");
+    // }
+    // // client.connect("localhost", 9090);
+    // }
 }

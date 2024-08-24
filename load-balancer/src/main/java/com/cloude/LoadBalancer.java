@@ -121,9 +121,4 @@ public class LoadBalancer {
             }
         }
     }
-
-    public static void main(String[] args) {
-        LoadBalancer loadBalancer = new LoadBalancer(8080);
-        loadBalancer.start();
-    }
 }
