@@ -67,6 +67,7 @@ public class StorageNode {
         }
 
         private boolean validateTokenWithLoadBalancer(String token) {
+            // TODO
             // In a real implementation, this would involve communicating with the load
             // balancer
             // For now, we'll simulate this by assuming the token is valid if it's not null

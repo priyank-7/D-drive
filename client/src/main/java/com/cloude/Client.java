@@ -14,9 +14,32 @@ public class Client {
     private int loadBalancerPort;
     private String token;
 
+    // TODO: Impliment connection timeout
+    // TODO: Impliment TCP Blocking Queue for multiple requests
+
     public Client(String loadBalancerHost, int loadBalancerPort) {
         this.loadBalancerHost = loadBalancerHost;
         this.loadBalancerPort = loadBalancerPort;
+    }
+
+    public void connect(String host, int port) throws ClassNotFoundException {
+        try (Socket socket = new Socket(host, port);
+                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+            System.out.println("Connected to " + host + ":" + port);
+
+            Request request = Request.builder()
+                    .requestType(RequestType.AUTHENTICATE)
+                    .payload("Hello from client")
+                    .build();
+            out.writeObject(request);
+            Response response = (Response) in.readObject();
+            System.out.println("Response: " + response.getPayload());
+            socket.close();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public boolean authenticate(String username, String password) {
@@ -128,10 +151,11 @@ public class Client {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ClassNotFoundException {
         Client client = new Client("localhost", 8080);
         if (client.authenticate("user", "password")) {
             client.uploadFile("path/to/file.txt");
         }
+        // client.connect("localhost", 9090);
     }
 }
