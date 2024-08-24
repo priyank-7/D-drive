@@ -2,6 +2,15 @@ package com.cloude.db;
 
 import java.io.Serializable;
 
+import lombok.Builder;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.ToString;
+
+@Getter
+@Setter
+@ToString
+@Builder
 public class User implements Serializable {
     private String username;
     private String passwordHash;
@@ -11,25 +20,5 @@ public class User implements Serializable {
         this.username = username;
         this.passwordHash = passwordHash;
         this.role = role;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public String getRole() {
-        return role;
-    }
-
-    @Override
-    public String toString() {
-        return "User{" +
-                "username='" + username + '\'' +
-                ", role='" + role + '\'' +
-                '}';
     }
 }

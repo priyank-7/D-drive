@@ -28,10 +28,11 @@ public class UserDAO {
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
-                return new User(
-                        rs.getString("username"),
-                        rs.getString("password_hash"),
-                        rs.getString("role"));
+                return User.builder()
+                        .username(rs.getString("username"))
+                        .passwordHash(rs.getString("password_hash"))
+                        .role(rs.getString("role"))
+                        .build();
             }
         }
         return null;

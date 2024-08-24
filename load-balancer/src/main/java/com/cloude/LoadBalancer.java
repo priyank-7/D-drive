@@ -4,7 +4,6 @@ import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import com.cloude.Security.SecurityUtil;
 import com.cloude.Token.TokenManager;
 import com.cloude.db.User;
 import com.cloude.db.UserDAO;
@@ -82,7 +81,6 @@ public class LoadBalancer {
             String[] credentials = ((String) request.getPayload()).split(":");
             String username = credentials[0];
             String password = credentials[1];
-
             User user;
             try {
                 user = userDAO.getUser(username);
@@ -91,12 +89,18 @@ public class LoadBalancer {
                 return;
             }
 
-            if (user != null && user.getPasswordHash().equals(SecurityUtil.hashPassword(password))) {
+            if (user != null && user.getPasswordHash().equals(password)) {
                 String token = tokenManager.generateToken(username);
-                Response response = new Response(StatusCode.SUCCESS, token);
+                Response response = Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .payload(token)
+                        .build();
                 out.writeObject(response);
             } else {
-                Response response = new Response(StatusCode.AUTHENTICATION_FAILED, "Invalid credentials");
+                Response response = Response.builder()
+                        .statusCode(StatusCode.AUTHENTICATION_FAILED)
+                        .payload("Invalid credentials")
+                        .build();
                 out.writeObject(response);
             }
         }
