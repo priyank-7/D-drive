@@ -54,13 +54,14 @@ public class Client {
                     .payload(credentials)
                     .build();
             out.writeObject(request);
+            out.flush();
             System.out.println("Sent authentication request");
 
             Response response = (Response) in.readObject();
             System.out.println("Received response");
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
-                token = (String) response.getPayload();
+                this.token = (String) response.getPayload();
                 System.out.println("Authenticated successfully. Token: " + token);
                 return true;
             } else {
@@ -86,10 +87,11 @@ public class Client {
             // Send a request to forward to the correct storage node
             Request forwardRequest = Request.builder()
                     .requestType(RequestType.FORWARD_REQUEST)
+                    .token(this.token)
                     .payload(filePath)
                     .build();
-            forwardRequest.setToken(token);
             out.writeObject(forwardRequest);
+            out.flush();
 
             Response response = (Response) in.readObject();
 
