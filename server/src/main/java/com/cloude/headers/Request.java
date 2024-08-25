@@ -18,4 +18,8 @@ public class Request implements java.io.Serializable {
     private RequestType requestType;
     private String token;
     private Object payload;
+
+    public Request(RequestType requestType) {
+        this.requestType = requestType;
+    }
 }

@@ -3,6 +3,8 @@ package com.cloude;
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import com.cloude.headers.Request;
 import com.cloude.headers.RequestType;
@@ -13,12 +15,20 @@ public class StorageNode {
     private ServerSocket serverSocket;
     private static final String LOAD_BALANCER_HOST = "localhost";
     private static final int LOAD_BALANCER_PORT = 8080;
+    private final ExecutorService threadPool;
 
     public StorageNode(int port) {
+        ExecutorService tempThreadPool = null;
         try {
             serverSocket = new ServerSocket(port);
+            int poolSize = Runtime.getRuntime().availableProcessors();
+            System.out.println("Pool size: " + poolSize);
+            tempThreadPool = Executors.newFixedThreadPool(poolSize);
         } catch (IOException e) {
             e.printStackTrace();
+            tempThreadPool = Executors.newFixedThreadPool(1); // Default to a single-thread pool in case of error
+        } finally {
+            this.threadPool = tempThreadPool;
         }
     }
 
@@ -26,7 +36,7 @@ public class StorageNode {
         while (true) {
             try {
                 Socket clientSocket = serverSocket.accept();
-                new Thread(new ClientHandler(clientSocket)).start();
+                threadPool.submit(new ClientHandler(clientSocket));
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -53,10 +63,12 @@ public class StorageNode {
             try {
                 while (true) {
                     Request request = (Request) in.readObject();
-                    String token = (String) request.getToken();
+                    String token = request.getToken();
 
                     if (validateTokenWithLoadBalancer(token)) {
-                        // Process request
+
+                        // TODO: Implement file upload logic here
+
                         Response response = new Response(StatusCode.SUCCESS, "Request processed by storage node");
                         out.writeObject(response);
                     } else {
@@ -80,10 +92,9 @@ public class StorageNode {
                         .token(token)
                         .build();
                 loadBalancerOut.writeObject(validationRequest);
-
-                // Receive the response from the load balancer
+                loadBalancerOut.flush();
                 Response response = (Response) loadBalancerIn.readObject();
-
+                loadBalancerOut.writeObject(new Request(RequestType.DISCONNECT));
                 return response.getStatusCode() == StatusCode.SUCCESS;
 
             } catch (IOException | ClassNotFoundException e) {

@@ -54,6 +54,7 @@ public class LoadBalancer {
             System.out.println("Pool size: " + poolSize);
             this.threadPool = Executors.newFixedThreadPool(poolSize);
             // Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
+            storageNodes.add(new InetSocketAddress("localhost", 9090));
         } catch (IOException e) {
             throw new RuntimeException("Failed to initialize LoadBalancer", e);
         }
@@ -93,12 +94,18 @@ public class LoadBalancer {
 
                     switch (request.getRequestType()) {
                         case AUTHENTICATE:
+                            // System.out.println("[LoadBalancer]: Received AUTHENTICATE request From
+                            // Client");
                             handleAuthenticate(request);
                             break;
                         case FORWARD_REQUEST:
+                            // System.out.println("[LoadBalancer]: Received FORWARD_REQUEST request From
+                            // Client");
                             handleForwardRequest(request);
                             break;
                         case VALIDATE_TOKEN:
+                            // System.out.println("[LoadBalancer]: Received VALIDATE_TOKEN request From
+                            // Storage Node");
                             handleValidateToken(request);
                             break;
                         case DISCONNECT:
@@ -138,11 +145,13 @@ public class LoadBalancer {
                         .payload("Invalid credentials")
                         .build();
                 out.writeObject(response);
+                out.flush();
             }
         }
 
         private void handleForwardRequest(Request request) throws IOException {
             String token = (String) request.getToken();
+            // System.out.println("[LoadBalancer]: Validation for forward request");
             if (tokenManager.validateToken(token)) {
                 InetSocketAddress storageNode = selectStorageNode();
                 Response response = Response.builder()
@@ -169,8 +178,9 @@ public class LoadBalancer {
         }
 
         private void handleValidateToken(Request request) throws IOException {
-            String token = (String) request.getPayload();
-            boolean isValid = tokenManager.validateToken(token);
+            String token = request.getToken();
+            boolean isValid = tokenManager.validateToken(token); // impliment different for storage node
+            // System.out.println("[LoadBalancer]: Is token valid " + isValid);
 
             Response response;
             if (isValid) {

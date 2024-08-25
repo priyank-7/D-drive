@@ -2,6 +2,7 @@ package com.cloude;
 
 public class Main {
     public static void main(String[] args) {
-        System.out.println("Hello world! from Server");
+        StorageNode storageNode = new StorageNode(9090);
+        storageNode.start();
     }
 }

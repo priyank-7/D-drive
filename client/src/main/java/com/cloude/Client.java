@@ -1,6 +1,7 @@
 package com.cloude;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 
 import com.cloude.headers.Metadata;
@@ -22,26 +23,6 @@ public class Client {
         this.loadBalancerPort = loadBalancerPort;
     }
 
-    public void connect(String host, int port) throws ClassNotFoundException {
-        try (Socket socket = new Socket(host, port);
-                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-                ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
-            System.out.println("Connected to " + host + ":" + port);
-
-            Request request = Request.builder()
-                    .requestType(RequestType.AUTHENTICATE)
-                    .payload("Hello from client")
-                    .build();
-            out.writeObject(request);
-            Response response = (Response) in.readObject();
-            System.out.println("Response: " + response.getPayload());
-            socket.close();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
     public boolean authenticate(String username, String password) {
         try (Socket socket = new Socket(loadBalancerHost, loadBalancerPort);
                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
@@ -55,10 +36,9 @@ public class Client {
                     .build();
             out.writeObject(request);
             out.flush();
-            System.out.println("Sent authentication request");
 
             Response response = (Response) in.readObject();
-            System.out.println("Received response");
+            out.writeObject(new Request(RequestType.DISCONNECT));
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 this.token = (String) response.getPayload();
@@ -94,15 +74,11 @@ public class Client {
             out.flush();
 
             Response response = (Response) in.readObject();
+            out.writeObject(new Request(RequestType.DISCONNECT));
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
-                String storageNodeAddress = (String) response.getPayload();
-                String[] addressParts = storageNodeAddress.split(":");
-                String storageNodeHost = addressParts[0];
-                int storageNodePort = Integer.parseInt(addressParts[1]);
-
                 // Now connect directly to the storage node to upload the file
-                uploadFileToStorageNode(filePath, storageNodeHost, storageNodePort);
+                uploadFileToStorageNode(filePath, (InetSocketAddress) response.getPayload());
             } else {
                 System.out.println("Failed to forward request: " + response.getPayload());
             }
@@ -112,8 +88,8 @@ public class Client {
         }
     }
 
-    private void uploadFileToStorageNode(String filePath, String storageNodeHost, int storageNodePort) {
-        try (Socket storageSocket = new Socket(storageNodeHost, storageNodePort);
+    private void uploadFileToStorageNode(String filePath, InetSocketAddress storageNodeAddress) {
+        try (Socket storageSocket = new Socket(storageNodeAddress.getAddress(), storageNodeAddress.getPort());
                 ObjectOutputStream out = new ObjectOutputStream(storageSocket.getOutputStream());
                 ObjectInputStream in = new ObjectInputStream(storageSocket.getInputStream());
                 FileInputStream fileInput = new FileInputStream(filePath)) {
@@ -129,21 +105,25 @@ public class Client {
             // Send metadata and file content
             Request fileUploadRequest = Request.builder()
                     .requestType(RequestType.UPLOAD_FILE)
+                    .token(token)
                     .payload(metadata)
                     .build();
-            fileUploadRequest.setToken(token);
             out.writeObject(fileUploadRequest);
+            out.flush();
+
+            Response response = (Response) in.readObject();
+
+            // TODO: Handle case based on response of storage node
 
             byte[] buffer = new byte[4096];
             int bytesRead;
             while ((bytesRead = fileInput.read(buffer)) != -1) {
                 out.write(buffer, 0, bytesRead);
             }
-
             out.flush();
 
             // Get the response from the storage node
-            Response response = (Response) in.readObject();
+            response = (Response) in.readObject();
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 System.out.println("File uploaded successfully.");
             } else {
@@ -154,12 +134,4 @@ public class Client {
             e.printStackTrace();
         }
     }
-
-    // public static void main(String[] args) throws ClassNotFoundException {
-    // Client client = new Client("localhost", 8080);
-    // if (client.authenticate("user", "password")) {
-    // client.uploadFile("path/to/file.txt");
-    // }
-    // // client.connect("localhost", 9090);
-    // }
 }

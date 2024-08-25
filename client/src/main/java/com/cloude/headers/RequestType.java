@@ -6,5 +6,6 @@ public enum RequestType {
     UPLOAD_FILE, // Request to upload a file to a storage node
     DOWNLOAD_FILE, // Request to download a file from a storage node
     GET_METADATA, // Request to retrieve metadata (file/folder)
-    DELETE_FILE // Request to delete a file
+    DELETE_FILE, // Request to delete a file
+    DISCONNECT, // Request to disconnect from the server
 }
