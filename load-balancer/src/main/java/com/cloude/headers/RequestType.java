@@ -7,5 +7,6 @@ public enum RequestType {
     DOWNLOAD_FILE, // Request to download a file from a storage node
     GET_METADATA, // Request to retrieve metadata (file/folder)
     DELETE_FILE, // Request to delete a file
-    DISCONNECT // Request to disconnect from the server
+    DISCONNECT, // Request to disconnect from the server
+    VALIDATE_TOKEN // Request to validate a token
 }

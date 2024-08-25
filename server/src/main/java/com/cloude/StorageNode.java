@@ -1,15 +1,18 @@
-package com.cloude.server;
+package com.cloude;
 
 import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 
 import com.cloude.headers.Request;
+import com.cloude.headers.RequestType;
 import com.cloude.headers.Response;
 import com.cloude.headers.StatusCode;
 
 public class StorageNode {
     private ServerSocket serverSocket;
+    private static final String LOAD_BALANCER_HOST = "localhost";
+    private static final int LOAD_BALANCER_PORT = 8080;
 
     public StorageNode(int port) {
         try {
@@ -67,11 +70,26 @@ public class StorageNode {
         }
 
         private boolean validateTokenWithLoadBalancer(String token) {
-            // TODO
-            // In a real implementation, this would involve communicating with the load
-            // balancer
-            // For now, we'll simulate this by assuming the token is valid if it's not null
-            return token != null;
+            try (Socket loadBalancerSocket = new Socket(LOAD_BALANCER_HOST, LOAD_BALANCER_PORT);
+                    ObjectOutputStream loadBalancerOut = new ObjectOutputStream(loadBalancerSocket.getOutputStream());
+                    ObjectInputStream loadBalancerIn = new ObjectInputStream(loadBalancerSocket.getInputStream())) {
+
+                // Send the token to the load balancer for validation
+                Request validationRequest = Request.builder()
+                        .requestType(RequestType.VALIDATE_TOKEN)
+                        .token(token)
+                        .build();
+                loadBalancerOut.writeObject(validationRequest);
+
+                // Receive the response from the load balancer
+                Response response = (Response) loadBalancerIn.readObject();
+
+                return response.getStatusCode() == StatusCode.SUCCESS;
+
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+                return false;
+            }
         }
     }
 

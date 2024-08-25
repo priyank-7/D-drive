@@ -65,6 +65,9 @@ public class LoadBalancer {
                         case FORWARD_REQUEST:
                             handleForwardRequest(request);
                             break;
+                        case VALIDATE_TOKEN:
+                            handleValidateToken(request);
+                            break;
                         case DISCONNECT:
                             clientSocket.close();
                             return;
@@ -113,12 +116,32 @@ public class LoadBalancer {
                 // TODO
                 // Forward request to appropriate storage node
                 // Code to select and forward to storage node goes here
+                // send address of selected storage node to client
                 Response response = new Response(StatusCode.SUCCESS, "Request forwarded to storage node");
                 out.writeObject(response);
             } else {
                 Response response = new Response(StatusCode.AUTHENTICATION_FAILED, "Invalid or expired token");
                 out.writeObject(response);
             }
+        }
+
+        private void handleValidateToken(Request request) throws IOException {
+            String token = (String) request.getPayload();
+            boolean isValid = tokenManager.validateToken(token);
+
+            Response response;
+            if (isValid) {
+                response = Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .payload("Token is valid")
+                        .build();
+            } else {
+                response = Response.builder()
+                        .statusCode(StatusCode.AUTHENTICATION_FAILED)
+                        .payload("Token is invalid or expired")
+                        .build();
+            }
+            out.writeObject(response);
         }
     }
 }
