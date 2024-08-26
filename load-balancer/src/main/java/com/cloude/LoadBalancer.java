@@ -94,25 +94,20 @@ public class LoadBalancer {
 
                     switch (request.getRequestType()) {
                         case AUTHENTICATE:
-                            // System.out.println("[LoadBalancer]: Received AUTHENTICATE request From
-                            // Client");
                             handleAuthenticate(request);
                             break;
                         case FORWARD_REQUEST:
-                            // System.out.println("[LoadBalancer]: Received FORWARD_REQUEST request From
-                            // Client");
                             handleForwardRequest(request);
                             break;
                         case VALIDATE_TOKEN:
-                            // System.out.println("[LoadBalancer]: Received VALIDATE_TOKEN request From
-                            // Storage Node");
                             handleValidateToken(request);
                             break;
                         case DISCONNECT:
                             clientSocket.close();
                             return;
                         default:
-                            break;
+                            Response response = new Response(StatusCode.UNKNOWN_REQUEST, "Unknown request type");
+                            out.writeObject(response);
                     }
                 }
             } catch (IOException | ClassNotFoundException e) {

@@ -102,7 +102,7 @@ public class Client {
                     .isFolder(false)
                     .build();
 
-            // Send metadata and file content
+            // Send metadata to the storage node
             Request fileUploadRequest = Request.builder()
                     .requestType(RequestType.UPLOAD_FILE)
                     .token(token)
@@ -111,18 +111,35 @@ public class Client {
             out.writeObject(fileUploadRequest);
             out.flush();
 
+            // Wait for the storage node to acknowledge metadata receipt
             Response response = (Response) in.readObject();
+            if (response.getStatusCode() != StatusCode.SUCCESS) {
+                System.out.println("Failed to upload file: " + response.getPayload());
+                out.writeObject(new Request(RequestType.DISCONNECT));
+                return;
+            }
 
-            // TODO: Handle case based on response of storage node
-
+            // Send the file data in chunks using Response objects
             byte[] buffer = new byte[4096];
             int bytesRead;
             while ((bytesRead = fileInput.read(buffer)) != -1) {
-                out.write(buffer, 0, bytesRead);
+                Response chunkResponse = Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .data(buffer)
+                        .dataSize(bytesRead)
+                        .build();
+                out.writeObject(chunkResponse);
+                out.flush();
             }
+
+            // Signal the end of the file upload
+            Response endResponse = Response.builder()
+                    .statusCode(StatusCode.EOF)
+                    .build();
+            out.writeObject(endResponse);
             out.flush();
 
-            // Get the response from the storage node
+            // Get the final response from the storage node
             response = (Response) in.readObject();
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 System.out.println("File uploaded successfully.");
@@ -130,8 +147,12 @@ public class Client {
                 System.out.println("File upload failed: " + response.getPayload());
             }
 
+            // Send request to disconnect
+            out.writeObject(new Request(RequestType.DISCONNECT));
+
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
     }
+
 }
