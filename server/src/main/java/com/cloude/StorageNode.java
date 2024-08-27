@@ -17,7 +17,7 @@ public class StorageNode {
     private static final String LOAD_BALANCER_HOST = "localhost";
     private static final int LOAD_BALANCER_PORT = 8080;
     private final ExecutorService threadPool;
-    private static final String STORAGE_DIRECTORY = "storage/";
+    private static final String STORAGE_DIRECTORY = "/Users/priyankpatel/Documents/storage/";
 
     public StorageNode(int port) {
         ExecutorService tempThreadPool = null;
@@ -82,6 +82,7 @@ public class StorageNode {
                                 handleGetMetadata(request);
                                 break;
                             case DISCONNECT:
+                                System.out.println("[Storage Node]: Disconnecting client");
                                 clientSocket.close();
                                 return;
                             default:
@@ -95,6 +96,14 @@ public class StorageNode {
                 }
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
+            } finally {
+                try {
+                    if (!clientSocket.isClosed()) {
+                        clientSocket.close(); // Ensure the socket is closed in case of exceptions
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
         }
 
@@ -121,6 +130,7 @@ public class StorageNode {
         }
 
         private void handleUploadFile(Request request) throws IOException {
+            System.out.println("[Storage Node]: file metadata received");
             Metadata metadata = (Metadata) request.getPayload();
             String fileName = metadata.getName();
             File file = new File(STORAGE_DIRECTORY + fileName);
@@ -131,22 +141,24 @@ public class StorageNode {
                 out.writeObject(new Response(StatusCode.SUCCESS, "Ready to receive file"));
             }
             out.flush();
+            System.out.println("[Storage Node]: Ready to receive file");
 
             // Open the file for writing (append mode)
-            try (FileOutputStream fos = new FileOutputStream(file, true)) {
-                Response chunkResponse;
+            try (FileOutputStream fos = new FileOutputStream(file)) {
                 while (true) {
-                    chunkResponse = (Response) in.readObject();
+                    Response chunkResponse = (Response) in.readObject();
                     if (StatusCode.EOF.equals(chunkResponse.getStatusCode())) {
+                        fos.close();
                         break;
                     }
                     byte[] chunk = chunkResponse.getData();
                     int chunkSize = chunkResponse.getDataSize();
                     fos.write(chunk, 0, chunkSize);
                     fos.flush();
-                    chunkResponse = null;
                 }
                 out.writeObject(new Response(StatusCode.SUCCESS, "File uploaded successfully"));
+                out.flush();
+                return;
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
                 if (file.exists()) {

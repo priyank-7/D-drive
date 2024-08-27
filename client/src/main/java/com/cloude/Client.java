@@ -3,6 +3,7 @@ package com.cloude;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.util.Arrays;
 
 import com.cloude.headers.Metadata;
 import com.cloude.headers.Request;
@@ -75,6 +76,7 @@ public class Client {
 
             Response response = (Response) in.readObject();
             out.writeObject(new Request(RequestType.DISCONNECT));
+            System.out.println("[client]: Got sotage node ip and port: " + response.getPayload().toString());
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 // Now connect directly to the storage node to upload the file
@@ -94,6 +96,7 @@ public class Client {
                 ObjectInputStream in = new ObjectInputStream(storageSocket.getInputStream());
                 FileInputStream fileInput = new FileInputStream(filePath)) {
 
+            System.out.println("[Client]: Connected to storage node");
             // Create file metadata to send to the storage node
             File file = new File(filePath);
             Metadata metadata = Metadata.builder()
@@ -102,6 +105,7 @@ public class Client {
                     .isFolder(false)
                     .build();
 
+            System.out.println("[Client]: Sending metadata to storage node");
             // Send metadata to the storage node
             Request fileUploadRequest = Request.builder()
                     .requestType(RequestType.UPLOAD_FILE)
@@ -118,6 +122,8 @@ public class Client {
                 out.writeObject(new Request(RequestType.DISCONNECT));
                 return;
             }
+            System.out.println("[Client]: Metadata received by storage node");
+            System.out.println("[Client]: Uploading file data");
 
             // Send the file data in chunks using Response objects
             byte[] buffer = new byte[4096];
@@ -125,7 +131,7 @@ public class Client {
             while ((bytesRead = fileInput.read(buffer)) != -1) {
                 Response chunkResponse = Response.builder()
                         .statusCode(StatusCode.SUCCESS)
-                        .data(buffer)
+                        .data(Arrays.copyOf(buffer, bytesRead))
                         .dataSize(bytesRead)
                         .build();
                 out.writeObject(chunkResponse);
@@ -149,6 +155,8 @@ public class Client {
 
             // Send request to disconnect
             out.writeObject(new Request(RequestType.DISCONNECT));
+            out.flush();
+            System.out.println("[Client]: Disconnected from storage node");
 
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();

@@ -16,4 +16,11 @@ import lombok.ToString;
 public class Response implements java.io.Serializable {
     private StatusCode statusCode;
     private Object payload;
+    private byte[] data;
+    private int dataSize;
+
+    public Response(StatusCode statusCode, Object payload) {
+        this.statusCode = statusCode;
+        this.payload = payload;
+    }
 }

@@ -7,6 +7,6 @@ public class Main {
         client.authenticate("user", "password");
         // /Users/priyankpatel/Desktop/test.png
         System.out.println("[Client]: Uploading file");
-        client.uploadFile("/Users/priyankpatel/Desktop/test.png");
+        client.uploadFile("/Users/priyankpatel/Desktop/comp.jpg");
     }
 }
