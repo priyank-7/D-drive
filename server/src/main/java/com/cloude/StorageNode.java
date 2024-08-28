@@ -244,15 +244,22 @@ public class StorageNode {
         }
 
         private void handleDeleteFile(Request request) throws IOException {
-            String fileName = (String) request.getPayload(); // assuming file name is in payload
+            String fileName = (String) request.getPayload();
             File file = new File(STORAGE_DIRECTORY + fileName);
-            if (file.exists() && file.delete()) {
-                Response response = new Response(StatusCode.SUCCESS, "File deleted successfully");
-                out.writeObject(response);
+
+            if (file.exists()) {
+                if (file.delete()) {
+                    Response response = new Response(StatusCode.SUCCESS, "File deleted successfully");
+                    out.writeObject(response);
+                } else {
+                    Response response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to delete file");
+                    out.writeObject(response);
+                }
             } else {
-                Response response = new Response(StatusCode.NOT_FOUND, "File not found or failed to delete");
+                Response response = new Response(StatusCode.NOT_FOUND, "File not found");
                 out.writeObject(response);
             }
+            out.flush();
         }
 
         private void handleGetMetadata(Request request) throws IOException {

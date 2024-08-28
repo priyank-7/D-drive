@@ -327,8 +327,35 @@ public class Client {
         }
     }
 
-    private void deleteFileFromStorageNode(String fileName, InetSocketAddress storageNodeAddress) {
+    private void deleteFileFromStorageNode(String filePath, InetSocketAddress storageNodeAddress) {
+        try (Socket storageSocket = new Socket(storageNodeAddress.getAddress(), storageNodeAddress.getPort());
+                ObjectOutputStream out = new ObjectOutputStream(storageSocket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(storageSocket.getInputStream())) {
 
+            System.out.println("[Client]: Connected to storage node");
+
+            Request deleteRequest = Request.builder()
+                    .requestType(RequestType.DELETE_FILE)
+                    .token(token)
+                    .payload(filePath)
+                    .build();
+            out.writeObject(deleteRequest);
+            out.flush();
+
+            Response response = (Response) in.readObject();
+            if (response.getStatusCode() == StatusCode.SUCCESS) {
+                System.out.println("File deleted successfully.");
+            } else {
+                System.out.println("Failed to delete file: " + response.getPayload());
+            }
+
+            out.writeObject(new Request(RequestType.DISCONNECT));
+            out.flush();
+            System.out.println("[Client]: Disconnected from storage node");
+
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 
 }
