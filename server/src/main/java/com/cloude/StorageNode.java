@@ -5,7 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
+import java.util.Arrays;
 import com.cloude.headers.Metadata;
 import com.cloude.headers.Request;
 import com.cloude.headers.RequestType;
@@ -129,6 +129,8 @@ public class StorageNode {
             }
         }
 
+        // Handle Upload File Request
+
         private void handleUploadFile(Request request) throws IOException {
             System.out.println("[Storage Node]: file metadata received");
             Metadata metadata = (Metadata) request.getPayload();
@@ -169,34 +171,75 @@ public class StorageNode {
             }
         }
 
+        // Handle Download File Request
+
         private void handleDownloadFile(Request request) throws IOException {
-            String fileName = (String) request.getPayload();
+            String fileName = (String) request.getPayload(); // Retrieving the filename from payload
             File file = new File(STORAGE_DIRECTORY + fileName);
+
             if (file.exists()) {
                 int chunkSize = 4096;
                 byte[] buffer = new byte[chunkSize];
                 Response response;
 
+                // Send file metadata before sending the file data
+                Metadata metadata = Metadata.builder()
+                        .name(file.getName())
+                        .size(file.length())
+                        .isFolder(false)
+                        .build();
+                response = Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .payload(metadata)
+                        .build();
+                out.writeObject(response);
+                out.flush();
+
+                // Wait for client acknowledgment of the metadata
+                try {
+                    Response clientResponse = (Response) in.readObject();
+                    if (clientResponse.getStatusCode() == StatusCode.SUCCESS) {
+                        System.out.println("[StorageNode]: Client acknowledged metadata receipt.");
+                    } else {
+                        System.out.println("[StorageNode]: Client failed to acknowledge metadata receipt.");
+                        return;
+                    }
+                } catch (ClassNotFoundException e) {
+                    e.printStackTrace();
+                    return;
+                }
+
+                // Now send the file data in chunks
                 try (FileInputStream fis = new FileInputStream(file)) {
-                    while ((fis.read(buffer)) != -1) {
+                    int bytesRead;
+                    while ((bytesRead = fis.read(buffer)) != -1) {
                         response = Response.builder()
                                 .statusCode(StatusCode.SUCCESS)
                                 .payload(fileName)
-                                .data(buffer)
+                                .data(Arrays.copyOf(buffer, bytesRead)) // Send only the valid bytes
+                                .dataSize(bytesRead)
                                 .build();
-
                         out.writeObject(response);
                         out.flush();
-                        response.setData(null);
                     }
+
+                    // Signal the end of the file transmission
+                    response = Response.builder()
+                            .statusCode(StatusCode.EOF)
+                            .build();
+                    out.writeObject(response);
+                    out.flush();
+
                 } catch (IOException e) {
                     e.printStackTrace();
                     response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to read file");
                     out.writeObject(response);
+                    out.flush();
                 }
             } else {
                 Response response = new Response(StatusCode.NOT_FOUND, "File not found");
                 out.writeObject(response);
+                out.flush();
             }
         }
 
