@@ -10,6 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import com.cloude.Token.TokenManager;
+import com.cloude.db.MongoDBConnection;
 import com.cloude.db.User;
 import com.cloude.db.UserDAO;
 import com.cloude.headers.Request;
@@ -48,7 +49,7 @@ public class LoadBalancer {
     public LoadBalancer(int port) {
         try {
             serverSocket = new ServerSocket(port);
-            userDAO = new UserDAO();
+            userDAO = new UserDAO(MongoDBConnection.getDatabase("ddrive"));
             tokenManager = new TokenManager();
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load
             System.out.println("Pool size: " + poolSize);
@@ -121,7 +122,7 @@ public class LoadBalancer {
             String password = credentials[1];
             User user;
             try {
-                user = userDAO.getUser(username);
+                user = userDAO.getUserByUsername(username);
             } catch (Exception e) {
                 e.printStackTrace();
                 return;

@@ -14,17 +14,15 @@ public class MongoDBConnection {
 
     static {
         // Configure MongoDB connection string
-        ConnectionString connectionString = new ConnectionString("mongodb://localhost:27017");
+        ConnectionString connectionString = new ConnectionString(
+                "mongodb+srv://priyankpatel9413:s7V7a9Jo6e10dCpR@ddrive.yamt4.mongodb.net/?retryWrites=true&w=majority&appName=Ddrive");
 
         // Configure connection pooling settings
         MongoClientSettings settings = MongoClientSettings.builder()
                 .applyConnectionString(connectionString)
-                .applyToConnectionPoolSettings(builder -> builder.maxSize(50) // Maximum number of connections in the
-                                                                              // pool
-                        .minSize(10) // Minimum number of connections in the pool
-                        .maxConnectionIdleTime(60, java.util.concurrent.TimeUnit.SECONDS) // Max idle time before a
-                                                                                          // connection is closed
-                )
+                .applyToConnectionPoolSettings(builder -> builder.maxSize(50)
+                        .minSize(10)
+                        .maxConnectionIdleTime(60, java.util.concurrent.TimeUnit.SECONDS))
                 .build();
 
         // Create MongoDB client

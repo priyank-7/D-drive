@@ -1,40 +1,31 @@
 package com.cloude.db;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import com.cloude.db.mappers.UserMapper;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import org.bson.Document;
+
+import static com.mongodb.client.model.Filters.eq;
 
 public class UserDAO {
 
-    public void addUser(String username, String passwordHash, String role) throws SQLException {
-        String sql = "INSERT INTO users (user_name, password, role) VALUES (?, ?, ?)";
+    private final MongoCollection<Document> userCollection;
 
-        try (Connection conn = DatabaseUtil.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            stmt.setString(2, passwordHash);
-            stmt.setString(3, role);
-            stmt.executeUpdate();
-        }
+    public UserDAO(MongoDatabase database) {
+        this.userCollection = database.getCollection("user");
     }
 
-    public User getUser(String username) throws SQLException {
-        String sql = "SELECT * FROM users WHERE user_name = ?";
+    public void insertUser(User user) {
+        Document userDoc = UserMapper.toDocument(user);
+        userCollection.insertOne(userDoc);
+    }
 
-        try (Connection conn = DatabaseUtil.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            ResultSet rs = stmt.executeQuery();
-
-            if (rs.next()) {
-                return User.builder()
-                        .username(rs.getString("user_name"))
-                        .passwordHash(rs.getString("password"))
-                        .role(rs.getString("role"))
-                        .build();
-            }
+    public User getUserByUsername(String username) {
+        Document doc = userCollection.find(eq("username", username)).first();
+        if (doc != null) {
+            return UserMapper.fromDocument(doc);
+        } else {
+            return null;
         }
-        return null;
     }
 }
