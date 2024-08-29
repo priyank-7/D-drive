@@ -27,10 +27,10 @@ Welcome to the Distributed Cloud Storage Project! This system has the capabiliti
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/distributed-cloud-storage.git
+   git clone https://github.com/priyank-7/D-drive.git
    ```
    ```bash
-   cd distributed-cloud-storage
+   cd D-drive
    ```
    ```bash
    mvn clean install
