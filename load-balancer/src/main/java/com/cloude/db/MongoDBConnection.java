@@ -1,5 +1,6 @@
 package com.cloude.db;
 
+import com.cloude.DBurl;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.client.MongoClient;
@@ -14,8 +15,7 @@ public class MongoDBConnection {
 
     static {
         // Configure MongoDB connection string
-        ConnectionString connectionString = new ConnectionString(
-                "mongodb+srv://priyankpatel9413:s7V7a9Jo6e10dCpR@ddrive.yamt4.mongodb.net/?retryWrites=true&w=majority&appName=Ddrive");
+        ConnectionString connectionString = new ConnectionString(DBurl.DBurl);
 
         // Configure connection pooling settings
         MongoClientSettings settings = MongoClientSettings.builder()
@@ -27,13 +27,16 @@ public class MongoDBConnection {
 
         // Create MongoDB client
         mongoClient = MongoClients.create(settings);
+        System.out.println("MongoDB connection initialized");
     }
 
     public static MongoDatabase getDatabase(String dbName) {
+        System.out.println("Database name: " + dbName);
         return mongoClient.getDatabase(dbName);
     }
 
     public static MongoCollection<Document> getCollection(String dbName, String collectionName) {
+        System.out.println("Collection name: " + collectionName);
         return getDatabase(dbName).getCollection(collectionName);
     }
 

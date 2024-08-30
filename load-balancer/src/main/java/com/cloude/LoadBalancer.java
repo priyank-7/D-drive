@@ -50,6 +50,7 @@ public class LoadBalancer {
         try {
             serverSocket = new ServerSocket(port);
             userDAO = new UserDAO(MongoDBConnection.getDatabase("ddrive"));
+            System.out.println("UserDAO initialized");
             tokenManager = new TokenManager();
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load
             System.out.println("Pool size: " + poolSize);
