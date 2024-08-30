@@ -2,6 +2,8 @@ package com.cloude.db;
 
 import java.io.Serializable;
 
+import org.bson.types.ObjectId;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -16,6 +18,7 @@ import lombok.ToString;
 @NoArgsConstructor
 @Builder
 public class User implements Serializable {
+    private ObjectId useId;
     private String username;
     private String passwordHash;
     private String role;
