@@ -6,6 +6,8 @@ import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.Arrays;
+
+import com.cloude.db.User;
 import com.cloude.headers.Metadata;
 import com.cloude.headers.Request;
 import com.cloude.headers.RequestType;
@@ -49,6 +51,7 @@ public class StorageNode {
         private Socket clientSocket;
         private ObjectOutputStream out;
         private ObjectInputStream in;
+        private User currentUser;
 
         public ClientHandler(Socket socket) {
             this.clientSocket = socket;
@@ -121,8 +124,12 @@ public class StorageNode {
                 loadBalancerOut.flush();
                 Response response = (Response) loadBalancerIn.readObject();
                 loadBalancerOut.writeObject(new Request(RequestType.DISCONNECT));
-                return response.getStatusCode() == StatusCode.SUCCESS;
-
+                if (response.getStatusCode() == StatusCode.SUCCESS) {
+                    this.currentUser = (User) response.getPayload();
+                    return true;
+                } else {
+                    return false;
+                }
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
                 return false;

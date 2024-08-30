@@ -50,7 +50,6 @@ public class LoadBalancer {
         try {
             serverSocket = new ServerSocket(port);
             userDAO = new UserDAO(MongoDBConnection.getDatabase("ddrive"));
-            System.out.println("UserDAO initialized");
             tokenManager = new TokenManager();
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load
             System.out.println("Pool size: " + poolSize);
@@ -66,7 +65,7 @@ public class LoadBalancer {
         while (true) {
             try {
                 Socket clientSocket = serverSocket.accept();
-                threadPool.submit(new ClientHandler(clientSocket));
+                threadPool.submit(new ClientHandler(clientSocket, userDAO));
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -77,9 +76,11 @@ public class LoadBalancer {
         private Socket clientSocket;
         private ObjectOutputStream out;
         private ObjectInputStream in;
+        private final UserDAO userDAO;
 
-        public ClientHandler(Socket socket) {
+        public ClientHandler(Socket socket, UserDAO userDAO) {
             this.clientSocket = socket;
+            this.userDAO = userDAO;
             try {
                 out = new ObjectOutputStream(clientSocket.getOutputStream());
                 in = new ObjectInputStream(clientSocket.getInputStream());
@@ -181,9 +182,10 @@ public class LoadBalancer {
 
             Response response;
             if (isValid) {
+                User user = this.userDAO.getUserByUsername(tokenManager.getUsernameFromToken(token));
                 response = Response.builder()
                         .statusCode(StatusCode.SUCCESS)
-                        .payload("Token is valid")
+                        .payload(user)
                         .build();
             } else {
                 response = Response.builder()
