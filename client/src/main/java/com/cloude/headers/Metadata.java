@@ -22,6 +22,7 @@ import lombok.ToString;
 public class Metadata implements Serializable {
     private String name;
     private long size;
+    private String path;
     private boolean isFolder;
     private Date createdDate;
     private Date modifiedDate;

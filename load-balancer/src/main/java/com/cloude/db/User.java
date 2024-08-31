@@ -3,6 +3,7 @@ package com.cloude.db;
 import java.io.Serializable;
 
 import org.bson.types.ObjectId;
+import java.util.*;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,6 +24,7 @@ public class User implements Serializable {
     private String passwordHash;
     private String role;
     private float usedStorage;
+    private List<ObjectId> sharedOjectIds;
 
     public User(String username, String passwordHash, String role) {
         this.username = username;

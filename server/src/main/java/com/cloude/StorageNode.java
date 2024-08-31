@@ -6,6 +6,7 @@ import java.net.Socket;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.Arrays;
+import java.util.Date;
 
 import com.cloude.db.MetadataDao;
 import com.cloude.db.User;
@@ -21,14 +22,14 @@ public class StorageNode {
     private static final int LOAD_BALANCER_PORT = 8080;
     private static final String STORAGE_DIRECTORY = "/Users/priyankpatel/Documents/storage/";
     private final ExecutorService threadPool;
-    private static MetadataDao metadataDao;
+    private MetadataDao metadataDao;
 
     public StorageNode(int port) {
         ExecutorService tempThreadPool = null;
         try {
             serverSocket = new ServerSocket(port);
             int poolSize = Runtime.getRuntime().availableProcessors();
-            metadataDao = new MetadataDao("ddrive", "metadata");
+            metadataDao = new MetadataDao("Ddrive", "metadata");
             System.out.println("Pool size: " + poolSize);
             tempThreadPool = Executors.newFixedThreadPool(poolSize);
         } catch (IOException e) {
@@ -147,24 +148,37 @@ public class StorageNode {
             System.out.println("[Storage Node]: file metadata received");
             Metadata metadata = (Metadata) request.getPayload();
             System.out.println("metadata recieved");
-            Metadata temp = metadataDao.getMetadata(metadata.getName(), this.currentUser.getUseId());
-            if (temp != null) {
-                metadata.setModifiedDate(new java.util.Date());
+            String filePath = STORAGE_DIRECTORY + File.pathSeparatorChar + this.currentUser.getUsername()
+                    + File.pathSeparatorChar + metadata.getName();
+
+            Metadata tempMetadata = this.metadataDao.getMetadata(metadata.getName(), this.currentUser.getUserId());
+            if (tempMetadata == null) {
+                tempMetadata = Metadata.builder()
+                        .name(metadata.getName())
+                        .size(metadata.getSize())
+                        .isFolder(false)
+                        .path(filePath)
+                        .owner(this.currentUser.getUserId())
+                        .createdDate(new Date())
+                        .modifiedDate(new Date())
+                        .build();
+                System.out.println("Metadata: " + tempMetadata);
+                if (this.metadataDao.saveMetadata(tempMetadata)) {
+                    System.out.println("Metadata saved successfully");
+                    out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
+                    out.flush();
+                } else {
+                    out.writeObject(new Response(StatusCode.INTERNAL_SERVER_ERROR, "Error to save metadata"));
+                    out.flush();
+                }
             } else {
-                metadata.setOwner(this.currentUser.getUseId());
-                metadata.setCreatedDate(new java.util.Date());
-                metadata.setModifiedDate(new java.util.Date());
-                metadataDao.saveMetadata(metadata);
+                tempMetadata.setModifiedDate(new Date());
+                tempMetadata.setSize(metadata.getSize());
+                this.metadataDao.updateMetadata(tempMetadata.getName(), this.currentUser.getUserId(), tempMetadata);
             }
-            String fileName = metadata.getName();
-            File file = new File(STORAGE_DIRECTORY + this.currentUser.getUsername() + fileName);
 
-            // TODO: Update used Storage space for the user
-            out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
-
-            out.flush();
             System.out.println("[Storage Node]: Ready to receive file");
-
+            File file = new File(filePath);
             // Open the file for writing (append mode)
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 while (true) {
