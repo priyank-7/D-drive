@@ -145,7 +145,7 @@ public class Client {
             out.flush();
 
             Response response = (Response) in.readObject();
-            out.writeObject(new Request(RequestType.DISCONNECT));
+            out.writeObject(new Request(RequestType.DISCONNECT, this.token));
             System.out.println("[client]: Got sotage node ip and port: " + response.getPayload().toString());
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
@@ -175,7 +175,7 @@ public class Client {
             out.flush();
 
             Response response = (Response) in.readObject();
-            out.writeObject(new Request(RequestType.DISCONNECT));
+            out.writeObject(new Request(RequestType.DISCONNECT, this.token));
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 this.token = (String) response.getPayload();
@@ -220,7 +220,7 @@ public class Client {
             Response response = (Response) in.readObject();
             if (response.getStatusCode() != StatusCode.SUCCESS) {
                 System.out.println("Failed to upload file: " + response.getPayload());
-                out.writeObject(new Request(RequestType.DISCONNECT));
+                out.writeObject(new Request(RequestType.DISCONNECT, this.token));
                 return;
             }
             System.out.println("[Client]: Metadata received by storage node");
@@ -255,7 +255,7 @@ public class Client {
             }
 
             // Send request to disconnect
-            out.writeObject(new Request(RequestType.DISCONNECT));
+            out.writeObject(new Request(RequestType.DISCONNECT, this.token));
             out.flush();
             System.out.println("[Client]: Disconnected from storage node");
 
@@ -285,7 +285,7 @@ public class Client {
             Response response = (Response) in.readObject();
             if (response.getStatusCode() != StatusCode.SUCCESS) {
                 System.out.println("Failed to download file: " + response.getPayload());
-                out.writeObject(new Request(RequestType.DISCONNECT));
+                out.writeObject(new Request(RequestType.DISCONNECT, this.token));
                 return;
             }
 
@@ -318,7 +318,7 @@ public class Client {
             }
 
             // Send request to disconnect
-            out.writeObject(new Request(RequestType.DISCONNECT));
+            out.writeObject(new Request(RequestType.DISCONNECT, this.token));
             out.flush();
             System.out.println("[Client]: Disconnected from storage node");
 
@@ -349,7 +349,7 @@ public class Client {
                 System.out.println("Failed to delete file: " + response.getPayload());
             }
 
-            out.writeObject(new Request(RequestType.DISCONNECT));
+            out.writeObject(new Request(RequestType.DISCONNECT, this.token));
             out.flush();
             System.out.println("[Client]: Disconnected from storage node");
 
