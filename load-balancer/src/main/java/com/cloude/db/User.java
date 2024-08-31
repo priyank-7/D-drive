@@ -19,7 +19,7 @@ import lombok.ToString;
 @NoArgsConstructor
 @Builder
 public class User implements Serializable {
-    private ObjectId userId;
+    private ObjectId _id;
     private String username;
     private String passwordHash;
     private String role;

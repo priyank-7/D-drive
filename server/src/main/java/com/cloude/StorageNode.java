@@ -29,7 +29,7 @@ public class StorageNode {
         try {
             serverSocket = new ServerSocket(port);
             int poolSize = Runtime.getRuntime().availableProcessors();
-            metadataDao = new MetadataDao("Ddrive", "metadata");
+            metadataDao = new MetadataDao("ddrive", "metadata");
             System.out.println("Pool size: " + poolSize);
             tempThreadPool = Executors.newFixedThreadPool(poolSize);
         } catch (IOException e) {
@@ -130,8 +130,10 @@ public class StorageNode {
                 loadBalancerOut.flush();
                 Response response = (Response) loadBalancerIn.readObject();
                 loadBalancerOut.writeObject(new Request(RequestType.DISCONNECT));
+                System.out.println("[Storage Node]: Token validation response: " + response);
                 if (response.getStatusCode() == StatusCode.SUCCESS) {
                     this.currentUser = (User) response.getPayload();
+
                     return true;
                 } else {
                     return false;
@@ -151,14 +153,15 @@ public class StorageNode {
             String filePath = STORAGE_DIRECTORY + File.pathSeparatorChar + this.currentUser.getUsername()
                     + File.pathSeparatorChar + metadata.getName();
 
-            Metadata tempMetadata = this.metadataDao.getMetadata(metadata.getName(), this.currentUser.getUserId());
+            Metadata tempMetadata = this.metadataDao.getMetadata(metadata.getName(), this.currentUser.get_id());
+            System.out.println("metadata: " + this.currentUser.get_id());
             if (tempMetadata == null) {
                 tempMetadata = Metadata.builder()
                         .name(metadata.getName())
                         .size(metadata.getSize())
                         .isFolder(false)
                         .path(filePath)
-                        .owner(this.currentUser.getUserId())
+                        .owner(this.currentUser.get_id())
                         .createdDate(new Date())
                         .modifiedDate(new Date())
                         .build();
@@ -174,7 +177,7 @@ public class StorageNode {
             } else {
                 tempMetadata.setModifiedDate(new Date());
                 tempMetadata.setSize(metadata.getSize());
-                this.metadataDao.updateMetadata(tempMetadata.getName(), this.currentUser.getUserId(), tempMetadata);
+                this.metadataDao.updateMetadata(tempMetadata.getName(), this.currentUser.get_id(), tempMetadata);
                 out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
             }
 
@@ -210,7 +213,15 @@ public class StorageNode {
 
         private void handleDownloadFile(Request request) throws IOException {
             String fileName = (String) request.getPayload(); // Retrieving the filename from payload
-            File file = new File(STORAGE_DIRECTORY + fileName);
+
+            Metadata tempMetadata = this.metadataDao.getMetadata(fileName, this.currentUser.get_id());
+            if (tempMetadata == null) {
+                Response response = new Response(StatusCode.NOT_FOUND, "File not found");
+                out.writeObject(response);
+                out.flush();
+                return;
+            }
+            File file = new File(tempMetadata.getPath());
 
             if (file.exists()) {
                 int chunkSize = 4096;
@@ -280,7 +291,16 @@ public class StorageNode {
 
         private void handleDeleteFile(Request request) throws IOException {
             String fileName = (String) request.getPayload();
-            File file = new File(STORAGE_DIRECTORY + fileName);
+
+            Metadata tempMetaData = this.metadataDao.getMetadata(fileName, this.currentUser.get_id());
+            if (tempMetaData == null) {
+                Response response = new Response(StatusCode.NOT_FOUND, "File not found");
+                out.writeObject(response);
+                out.flush();
+                return;
+            }
+            this.metadataDao.deleteMetadata(tempMetaData);
+            File file = new File(tempMetaData.getPath());
 
             if (file.exists()) {
                 if (file.delete()) {

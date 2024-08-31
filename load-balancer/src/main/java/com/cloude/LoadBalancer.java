@@ -49,7 +49,7 @@ public class LoadBalancer {
     public LoadBalancer(int port) {
         try {
             serverSocket = new ServerSocket(port);
-            userDAO = new UserDAO(MongoDBConnection.getDatabase("Ddrive"));
+            userDAO = new UserDAO(MongoDBConnection.getDatabase("ddrive"));
             tokenManager = new TokenManager();
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load
             System.out.println("Pool size: " + poolSize);
@@ -185,6 +185,7 @@ public class LoadBalancer {
             Response response;
             if (isValid) {
                 User user = this.userDAO.getUserByUsername(tokenManager.getUsernameFromToken(token));
+                System.out.println("[LoadBalancer]: User: " + user);
                 response = Response.builder()
                         .statusCode(StatusCode.SUCCESS)
                         .payload(user)

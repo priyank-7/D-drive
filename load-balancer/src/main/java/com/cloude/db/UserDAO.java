@@ -22,6 +22,7 @@ public class UserDAO {
 
     public User getUserByUsername(String username) {
         Document doc = userCollection.find(eq("username", username)).first();
+        System.out.println(doc);
         if (doc != null) {
             return UserMapper.fromDocument(doc);
         } else {

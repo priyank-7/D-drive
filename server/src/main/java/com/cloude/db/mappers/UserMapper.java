@@ -15,6 +15,7 @@ public class UserMapper {
 
     public static User fromDocument(Document document) {
         return User.builder()
+                ._id(document.getObjectId("_id"))
                 .username(document.getString("username"))
                 .passwordHash(document.getString("passwordHash")) // remove if not needed
                 .role(document.getString("role"))

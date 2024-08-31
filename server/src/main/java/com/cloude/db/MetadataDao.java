@@ -79,4 +79,9 @@ public class MetadataDao {
             return null;
         }
     }
+
+    public void deleteMetadata(Metadata tempMetaData) {
+
+        throw new UnsupportedOperationException("Unimplemented method 'deleteMetadata'");
+    }
 }
