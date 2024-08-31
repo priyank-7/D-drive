@@ -3,7 +3,7 @@ package com.cloude.db.mappers;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 
-import com.cloude.db.Metadata;
+import com.cloude.headers.Metadata;
 
 import java.util.List;
 

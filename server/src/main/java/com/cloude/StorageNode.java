@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.Arrays;
 
+import com.cloude.db.MetadataDao;
 import com.cloude.db.User;
 import com.cloude.headers.Metadata;
 import com.cloude.headers.Request;
@@ -18,14 +19,16 @@ public class StorageNode {
     private ServerSocket serverSocket;
     private static final String LOAD_BALANCER_HOST = "localhost";
     private static final int LOAD_BALANCER_PORT = 8080;
-    private final ExecutorService threadPool;
     private static final String STORAGE_DIRECTORY = "/Users/priyankpatel/Documents/storage/";
+    private final ExecutorService threadPool;
+    private static MetadataDao metadataDao;
 
     public StorageNode(int port) {
         ExecutorService tempThreadPool = null;
         try {
             serverSocket = new ServerSocket(port);
             int poolSize = Runtime.getRuntime().availableProcessors();
+            metadataDao = new MetadataDao("ddrive", "metadata");
             System.out.println("Pool size: " + poolSize);
             tempThreadPool = Executors.newFixedThreadPool(poolSize);
         } catch (IOException e) {
@@ -40,7 +43,7 @@ public class StorageNode {
         while (true) {
             try {
                 Socket clientSocket = serverSocket.accept();
-                threadPool.submit(new ClientHandler(clientSocket));
+                threadPool.submit(new ClientHandler(clientSocket, this.metadataDao));
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -52,9 +55,11 @@ public class StorageNode {
         private ObjectOutputStream out;
         private ObjectInputStream in;
         private User currentUser;
+        private MetadataDao metadataDao;
 
-        public ClientHandler(Socket socket) {
+        public ClientHandler(Socket socket, MetadataDao metadataDao) {
             this.clientSocket = socket;
+            this.metadataDao = metadataDao;
             try {
                 out = new ObjectOutputStream(clientSocket.getOutputStream());
                 in = new ObjectInputStream(clientSocket.getInputStream());
@@ -141,14 +146,22 @@ public class StorageNode {
         private void handleUploadFile(Request request) throws IOException {
             System.out.println("[Storage Node]: file metadata received");
             Metadata metadata = (Metadata) request.getPayload();
-            String fileName = metadata.getName();
-            File file = new File(STORAGE_DIRECTORY + fileName);
-
-            if (file.exists()) {
-                out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
+            System.out.println("metadata recieved");
+            Metadata temp = metadataDao.getMetadata(metadata.getName(), this.currentUser.getUseId());
+            if (temp != null) {
+                metadata.setModifiedDate(new java.util.Date());
             } else {
-                out.writeObject(new Response(StatusCode.SUCCESS, "Ready to receive file"));
+                metadata.setOwner(this.currentUser.getUseId());
+                metadata.setCreatedDate(new java.util.Date());
+                metadata.setModifiedDate(new java.util.Date());
+                metadataDao.saveMetadata(metadata);
             }
+            String fileName = metadata.getName();
+            File file = new File(STORAGE_DIRECTORY + this.currentUser.getUsername() + fileName);
+
+            // TODO: Update used Storage space for the user
+            out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
+
             out.flush();
             System.out.println("[Storage Node]: Ready to receive file");
 

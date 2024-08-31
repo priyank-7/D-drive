@@ -1,18 +1,30 @@
 package com.cloude.headers;
 
+import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 
+import org.bson.types.ObjectId;
+
+import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
 
-@Data
+@Getter
+@Setter
+@ToString
 @Builder
-public class Metadata implements java.io.Serializable {
-
+@AllArgsConstructor
+@NoArgsConstructor
+public class Metadata implements Serializable {
     private String name;
     private long size;
     private boolean isFolder;
     private Date createdDate;
     private Date modifiedDate;
-    private String owner;
+    private ObjectId owner;
+    private List<ObjectId> sharedWith;
 }
