@@ -165,7 +165,7 @@ public class StorageNode {
                 System.out.println("Metadata: " + tempMetadata);
                 if (this.metadataDao.saveMetadata(tempMetadata)) {
                     System.out.println("Metadata saved successfully");
-                    out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
+                    out.writeObject(new Response(StatusCode.SUCCESS, "File Created Successfully"));
                     out.flush();
                 } else {
                     out.writeObject(new Response(StatusCode.INTERNAL_SERVER_ERROR, "Error to save metadata"));
@@ -175,6 +175,7 @@ public class StorageNode {
                 tempMetadata.setModifiedDate(new Date());
                 tempMetadata.setSize(metadata.getSize());
                 this.metadataDao.updateMetadata(tempMetadata.getName(), this.currentUser.getUserId(), tempMetadata);
+                out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
             }
 
             System.out.println("[Storage Node]: Ready to receive file");
