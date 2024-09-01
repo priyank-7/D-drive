@@ -212,8 +212,8 @@ public class StorageNode {
             System.out.println("[Storage Node]: file metadata received");
             Metadata metadata = (Metadata) request.getPayload();
             System.out.println("metadata recieved");
-            String filePath = STORAGE_DIRECTORY + File.pathSeparatorChar + this.currentUser.getUsername()
-                    + File.pathSeparatorChar + metadata.getName();
+            String filePath = STORAGE_DIRECTORY + File.pathSeparator + this.currentUser.getUsername()
+                    + File.pathSeparator + metadata.getName();
 
             Metadata tempMetadata = this.metadataDao.getMetadata(metadata.getName(), this.currentUser.get_id());
             System.out.println("metadata: " + this.currentUser.get_id());
@@ -355,6 +355,7 @@ public class StorageNode {
             String fileName = (String) request.getPayload();
 
             Metadata tempMetaData = this.metadataDao.getMetadata(fileName, this.currentUser.get_id());
+            System.out.println("metadata: " + tempMetaData);
             if (tempMetaData == null) {
                 Response response = new Response(StatusCode.NOT_FOUND, "File not found");
                 out.writeObject(response);

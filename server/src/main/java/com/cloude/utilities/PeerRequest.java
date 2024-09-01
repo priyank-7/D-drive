@@ -3,7 +3,6 @@ package com.cloude.utilities;
 import java.net.InetSocketAddress;
 
 import com.cloude.headers.RequestType;
-import com.cloude.utilities.NodeType;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

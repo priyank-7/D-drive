@@ -12,10 +12,14 @@ import com.cloude.utilities.PeerRequest;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Date;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -85,8 +89,6 @@ public class Registory {
             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
             ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
 
-            // Send PING request
-            // PeerRequest request = new PeerRequest(RequestType.PING);
             Request request = new Request(RequestType.PING);
             out.writeObject(request);
             out.flush();
@@ -114,11 +116,14 @@ public class Registory {
         node.setFailedAttempts(failedAttempts);
 
         if (failedAttempts >= MAX_RETRIES) {
-            if (node.getNodetype().equals(NodeType.STORAGE_NODE)) {
-                storageNodes.remove(node.getNodeId());
-            } else {
-                loadBalancers.remove(node.getNodeId());
-            }
+
+            // TODO
+            // Do not remove the node from the registry Insted mark it as unresponsive and
+            // keep check its last response time.
+            // If the last response time is greater than the 15 min the remove the node from
+            // the registry and notify the Load Balancer.
+            // Remove queue as well.
+
             System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is unresponsive.");
         } else {
             node.setStatus(NodeStatus.INACTIVE);
@@ -127,7 +132,6 @@ public class Registory {
         }
     }
 
-    // Handle service connections
     private class ServiceHandler implements Runnable {
         private final Socket clientSocket;
         private ObjectOutputStream out;
@@ -171,27 +175,75 @@ public class Registory {
         }
 
         private void handleRegisterRequest(PeerRequest request) throws IOException {
-            NodeInfo nodeInfo = NodeInfo.builder()
-                    .nodeId(UUID.randomUUID().toString())
-                    .nodetype(request.getNodeType())
-                    .nodeAddress(request.getSocketAddress())
-                    .status(NodeStatus.ACTIVE)
-                    .registrationTime(new Date())
-                    .lastResponse(new Date())
-                    .build();
-            System.out.println("[Registory] :" + "Node registered: " + nodeInfo);
+            NodeInfo nodeInfo;
             Response response;
+
             if (request.getNodeType() == NodeType.STORAGE_NODE) {
+
+                nodeInfo = findExistingNode(storageNodes, request.getSocketAddress());
+                if (nodeInfo != null) {
+
+                    nodeInfo.setStatus(NodeStatus.ACTIVE);
+                    nodeInfo.setLastResponse(new Date());
+                    System.out.println("[Registory] : Storage node re-registered and activated: " + nodeInfo);
+                    response = new Response(StatusCode.SUCCESS,
+                            "Storage node re-registered and activated successfully");
+                } else {
+                    nodeInfo = NodeInfo.builder()
+                            .nodeId(UUID.randomUUID().toString())
+                            .nodetype(request.getNodeType())
+                            .nodeAddress(request.getSocketAddress())
+                            .status(NodeStatus.ACTIVE)
+                            .registrationTime(new Date())
+                            .lastResponse(new Date())
+                            .build();
+                    response = new Response(StatusCode.SUCCESS, "Storage node registered successfully");
+                }
                 storageNodes.put(nodeInfo.getNodeId(), nodeInfo);
-                response = new Response(StatusCode.SUCCESS, "Node registered successfully");
+                response = new Response(StatusCode.SUCCESS, "Storage node registered successfully");
+
             } else if (request.getNodeType() == NodeType.LOAD_BALANCER) {
+                nodeInfo = findExistingNode(loadBalancers, request.getSocketAddress());
+                if (nodeInfo != null) {
+                    nodeInfo.setStatus(NodeStatus.ACTIVE);
+                    nodeInfo.setLastResponse(new Date());
+                    System.out.println("[Registory] : Load Balancer re-registered and activated: " + nodeInfo);
+                    response = new Response(StatusCode.SUCCESS,
+                            "Load Balancer re-registered and activated successfully");
+                } else {
+                    nodeInfo = NodeInfo.builder()
+                            .nodeId(UUID.randomUUID().toString())
+                            .nodetype(request.getNodeType())
+                            .nodeAddress(request.getSocketAddress())
+                            .status(NodeStatus.ACTIVE)
+                            .registrationTime(new Date())
+                            .lastResponse(new Date())
+                            .build();
+                    response = new Response(StatusCode.SUCCESS, "Load Balancer registered successfully");
+                }
                 loadBalancers.put(nodeInfo.getNodeId(), nodeInfo);
-                response = new Response(StatusCode.SUCCESS, "Node registered successfully");
+                List<InetSocketAddress> activeStorageNodes = new ArrayList<>();
+                for (NodeInfo storageNode : storageNodes.values()) {
+                    if (storageNode.getStatus() == NodeStatus.ACTIVE) {
+                        activeStorageNodes.add(storageNode.getNodeAddress());
+                    }
+                }
+                response = new Response(StatusCode.SUCCESS, activeStorageNodes);
+
             } else {
                 response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Unknown request type");
             }
             out.writeObject(response);
             out.flush();
+        }
+
+        private NodeInfo findExistingNode(Map<String, NodeInfo> registeredNodes, InetSocketAddress currentAddress) {
+            for (NodeInfo node : registeredNodes.values()) {
+                if (node.getNodeAddress().equals(currentAddress)) {
+                    return node;
+                }
+            }
+            return null;
         }
 
         private void handleUnregisterRequest(PeerRequest request) throws IOException {

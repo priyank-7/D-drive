@@ -11,4 +11,5 @@ public enum RequestType {
     DISCONNECT,
     REGISTER,
     UNREGISTER,
+    PING,
 }

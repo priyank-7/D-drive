@@ -7,5 +7,7 @@ public enum StatusCode {
     AUTHENTICATION_FAILED,
     UNKNOWN_REQUEST,
     NOT_FOUND,
-    INTERNAL_SERVER_ERROR
+    INTERNAL_SERVER_ERROR,
+    EOF,
+    PONG,
 }

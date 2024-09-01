@@ -14,8 +14,11 @@ import com.cloude.db.MongoDBConnection;
 import com.cloude.db.User;
 import com.cloude.db.UserDAO;
 import com.cloude.headers.Request;
+import com.cloude.headers.RequestType;
 import com.cloude.headers.Response;
 import com.cloude.headers.StatusCode;
+import com.cloude.utilities.NodeType;
+import com.cloude.utilities.PeerRequest;
 
 public class LoadBalancer {
     private final ServerSocket serverSocket;
@@ -23,7 +26,7 @@ public class LoadBalancer {
     private final TokenManager tokenManager;
     private final ExecutorService threadPool;
 
-    private final List<InetSocketAddress> storageNodes = new ArrayList<>();
+    private List<InetSocketAddress> storageNodes = new ArrayList<>();
     private int currentIndex = 0;
 
     // TODO
@@ -49,15 +52,46 @@ public class LoadBalancer {
     public LoadBalancer(int port) {
         try {
             serverSocket = new ServerSocket(port);
-            userDAO = new UserDAO(MongoDBConnection.getDatabase("ddrive"));
-            tokenManager = new TokenManager();
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load
             System.out.println("Pool size: " + poolSize);
             this.threadPool = Executors.newFixedThreadPool(poolSize);
+            userDAO = new UserDAO(MongoDBConnection.getDatabase("ddrive"));
+            tokenManager = new TokenManager();
             // Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
-            storageNodes.add(new InetSocketAddress("localhost", 9090));
+            registerWithRegistory();
         } catch (IOException e) {
             throw new RuntimeException("Failed to initialize LoadBalancer", e);
+        }
+    }
+
+    private void registerWithRegistory() {
+        try (Socket registrySocket = new Socket("localhost", 7070)) {
+            ObjectOutputStream out = new ObjectOutputStream(registrySocket.getOutputStream());
+            ObjectInputStream in = new ObjectInputStream(registrySocket.getInputStream());
+
+            // Create a request to register the load balancer with the registry
+            PeerRequest regiPeerRequest = PeerRequest.builder()
+                    .requestType(RequestType.REGISTER)
+                    .nodeType(NodeType.LOAD_BALANCER)
+                    .socketAddress(new InetSocketAddress("localhost", serverSocket.getLocalPort()))
+                    .build();
+            out.writeObject(regiPeerRequest);
+            out.flush();
+
+            // Receive and handle the response from the registry
+            Response response = (Response) in.readObject();
+            if (response.getStatusCode() == StatusCode.SUCCESS) {
+                System.out.println("LoadBalancer successfully registered with Registory");
+
+                // Expecting a payload with the list of active storage nodes
+                this.storageNodes = (List<InetSocketAddress>) response.getPayload();
+                System.out.println("Active storage nodes: " + storageNodes);
+            } else {
+                System.err.println("Failed to register LoadBalancer with Registory: " + response.getPayload());
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+            throw new RuntimeException("Registration with Registory failed", e);
         }
     }
 
@@ -96,6 +130,10 @@ public class LoadBalancer {
                     Request request = (Request) in.readObject();
 
                     switch (request.getRequestType()) {
+                        case PING:
+                            handlePingRequest();
+                            clientSocket.close();
+                            return;
                         case AUTHENTICATE:
                             handleAuthenticate(request);
                             break;
@@ -199,26 +237,14 @@ public class LoadBalancer {
             out.writeObject(response);
         }
 
-        // public void shutdown() {
-        // System.out.println("Shutting down server...");
-        // threadPool.shutdown();
-        // try {
-        // if (!threadPool.awaitTermination(60, TimeUnit.SECONDS)) {
-        // threadPool.shutdownNow();
-        // }
-        // } catch (InterruptedException ex) {
-        // threadPool.shutdownNow();
-        // Thread.currentThread().interrupt();
-        // }
-
-        // // Close the server socket
-        // try {
-        // serverSocket.close();
-        // } catch (IOException e) {
-        // e.printStackTrace();
-        // }
-
-        // System.out.println("Server shut down.");
-        // }
+        private void handlePingRequest() {
+            try {
+                // Send a simple PONG response back to the client
+                out.writeObject(new Response(StatusCode.PONG, "PONG"));
+                out.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
