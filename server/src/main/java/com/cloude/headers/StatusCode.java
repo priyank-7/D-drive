@@ -9,4 +9,5 @@ public enum StatusCode {
     NOT_FOUND,
     INTERNAL_SERVER_ERROR,
     EOF,
+    PONG,
 }

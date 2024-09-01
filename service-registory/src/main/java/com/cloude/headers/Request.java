@@ -1,9 +1,5 @@
 package com.cloude.headers;
 
-import java.net.InetSocketAddress;
-
-import com.cloude.utilities.NodeType;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,14 +16,12 @@ import lombok.ToString;
 public class Request implements java.io.Serializable {
 
     private RequestType requestType;
-    private NodeType nodeType;
-    private InetSocketAddress socketAddress;
+    private String token;
     private Object payload;
 
-    public Request(RequestType requestType, InetSocketAddress socketAddress, NodeType nodeType) {
+    public Request(RequestType requestType, String token) {
         this.requestType = requestType;
-        this.socketAddress = socketAddress;
-        this.nodeType = nodeType;
+        this.token = token;
     }
 
     public Request(RequestType requestType) {

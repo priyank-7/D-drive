@@ -12,7 +12,7 @@ import lombok.ToString;
 @Setter
 @Builder
 @ToString
-public class NodeInfo {
+public class NodeInfo implements java.io.Serializable {
 
     private String nodeId;
     private NodeType nodetype;

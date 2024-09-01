@@ -1,6 +1,7 @@
 package com.cloude;
 
 import java.io.*;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.ExecutorService;
@@ -15,12 +16,18 @@ import com.cloude.headers.Request;
 import com.cloude.headers.RequestType;
 import com.cloude.headers.Response;
 import com.cloude.headers.StatusCode;
+import com.cloude.utilities.NodeType;
+import com.cloude.utilities.PeerRequest;
 
 public class StorageNode {
     private ServerSocket serverSocket;
     private static final String LOAD_BALANCER_HOST = "localhost";
     private static final int LOAD_BALANCER_PORT = 8080;
     private static final String STORAGE_DIRECTORY = "/Users/priyankpatel/Documents/storage/";
+
+    private static final String REGISTRY_HOST = "localhost"; // Registry service host
+    private static final int REGISTRY_PORT = 7070; // Registry service port
+
     private final ExecutorService threadPool;
     private MetadataDao metadataDao;
 
@@ -38,16 +45,52 @@ public class StorageNode {
         } finally {
             this.threadPool = tempThreadPool;
         }
+
+        if (registerWithRegistry()) {
+            System.out.println("Successfully registered with the Registry");
+        } else {
+            System.out.println("Failed to register with the Registry");
+        }
     }
 
     public void start() {
+        System.out.println("[Storage Node]: Listening on port " + serverSocket.getLocalPort());
         while (true) {
             try {
                 Socket clientSocket = serverSocket.accept();
                 threadPool.submit(new ClientHandler(clientSocket, this.metadataDao));
+                System.out.println("[Storage Node]: Accepted connection from " + clientSocket.getPort());
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    private boolean registerWithRegistry() {
+        try (Socket registrySocket = new Socket(REGISTRY_HOST, REGISTRY_PORT);
+                ObjectOutputStream out = new ObjectOutputStream(registrySocket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(registrySocket.getInputStream())) {
+
+            // Create the registration request
+            // TODO: Get the actual IP address of the storage node
+            PeerRequest regiPeerRequest = PeerRequest.builder()
+                    .requestType(RequestType.REGISTER)
+                    .nodeType(NodeType.STORAGE_NODE)
+                    .socketAddress(new InetSocketAddress("localhost", serverSocket.getLocalPort()))
+                    .build();
+            out.writeObject(regiPeerRequest);
+            out.flush();
+
+            Response response = (Response) in.readObject();
+            if (response.getStatusCode() == StatusCode.SUCCESS) {
+                return true;
+            } else {
+                System.out.println("Registry registration failed: " + response.getPayload());
+                return false;
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+            return false;
         }
     }
 
@@ -73,8 +116,16 @@ public class StorageNode {
         public void run() {
             try {
                 while (true) {
+                    System.out.println("[Storage Node]: Waiting for requests...");
                     Request request = (Request) in.readObject();
                     String token = request.getToken();
+                    System.out.println("[Storage Node]: Received request: " + request.getRequestType());
+
+                    if (request.getRequestType() == RequestType.PING) {
+                        handlePingRequest();
+                        clientSocket.close();
+                        return;
+                    }
 
                     if (validateTokenWithLoadBalancer(token)) {
                         switch (request.getRequestType()) {
@@ -106,6 +157,7 @@ public class StorageNode {
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             } finally {
+                System.out.println("[Storage Node]: Closing connection");
                 try {
                     if (!clientSocket.isClosed()) {
                         clientSocket.close(); // Ensure the socket is closed in case of exceptions
@@ -113,6 +165,16 @@ public class StorageNode {
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
+            }
+        }
+
+        private void handlePingRequest() {
+            try {
+                // Send a simple PONG response back to the client
+                out.writeObject(new Response(StatusCode.PONG, "PONG"));
+                out.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
         }
 

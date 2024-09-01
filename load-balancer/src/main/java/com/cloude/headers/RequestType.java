@@ -1,12 +1,14 @@
 package com.cloude.headers;
 
 public enum RequestType {
-    AUTHENTICATE, // Request for user authentication
-    FORWARD_REQUEST, // Request to forward to a storage node
-    UPLOAD_FILE, // Request to upload a file to a storage node
-    DOWNLOAD_FILE, // Request to download a file from a storage node
-    GET_METADATA, // Request to retrieve metadata (file/folder)
-    DELETE_FILE, // Request to delete a file
-    DISCONNECT, // Request to disconnect from the server
-    VALIDATE_TOKEN // Request to validate a token
+    AUTHENTICATE,
+    FORWARD_REQUEST,
+    UPLOAD_FILE,
+    DOWNLOAD_FILE,
+    GET_METADATA,
+    DELETE_FILE,
+    VALIDATE_TOKEN,
+    DISCONNECT,
+    REGISTER,
+    UNREGISTER,
 }
