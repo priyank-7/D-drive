@@ -12,6 +12,7 @@
         <module>server</module>
         <module>client</module>
         <module>load-balancer</module>
+        <module>service-registory</module>
     </modules>
 
     <properties>
