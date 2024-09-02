@@ -125,10 +125,36 @@ public class Registory {
             // Remove queue as well.
 
             System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is unresponsive.");
+            // TODO: keep track of failed attempts and mark the node as inactive, If no
+            // change happens the no need to send the inactive node to the Load Balancer.
+            sendActiveNodesToLoadBalancers();
         } else {
             node.setStatus(NodeStatus.INACTIVE);
             System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is inactive (Attempt " + failedAttempts
                     + "/" + MAX_RETRIES + ").");
+        }
+    }
+
+    private void sendActiveNodesToLoadBalancers() {
+        List<InetSocketAddress> activeStorageNodes = new ArrayList<>();
+        for (NodeInfo storageNode : storageNodes.values()) {
+            if (storageNode.getStatus() == NodeStatus.ACTIVE) {
+                activeStorageNodes.add(storageNode.getNodeAddress());
+            }
+        }
+
+        for (NodeInfo loadBalancer : loadBalancers.values()) {
+            try (Socket lbSocket = new Socket(loadBalancer.getNodeAddress().getHostName(),
+                    loadBalancer.getNodeAddress().getPort())) {
+                ObjectOutputStream lbOut = new ObjectOutputStream(lbSocket.getOutputStream());
+                Request lbRequest = new Request(RequestType.UPDATE, activeStorageNodes);
+                lbOut.writeObject(lbRequest);
+                lbOut.flush();
+
+            } catch (IOException e) {
+                System.err.println(
+                        "[Registory] : Failed to send active node list to Load Balancer " + loadBalancer.getNodeId());
+            }
         }
     }
 
@@ -201,6 +227,7 @@ public class Registory {
                 }
                 storageNodes.put(nodeInfo.getNodeId(), nodeInfo);
                 response = new Response(StatusCode.SUCCESS, "Storage node registered successfully");
+                sendActiveNodesToLoadBalancers();
 
             } else if (request.getNodeType() == NodeType.LOAD_BALANCER) {
                 nodeInfo = findExistingNode(loadBalancers, request.getSocketAddress());

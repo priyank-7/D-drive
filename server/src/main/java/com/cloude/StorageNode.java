@@ -23,7 +23,7 @@ public class StorageNode {
     private ServerSocket serverSocket;
     private static final String LOAD_BALANCER_HOST = "localhost";
     private static final int LOAD_BALANCER_PORT = 8080;
-    private static final String STORAGE_DIRECTORY = "/Users/priyankpatel/Documents/storage/";
+    private static final String STORAGE_DIRECTORY = "/Users/priyankpatel/Documents/storage";
 
     private static final String REGISTRY_HOST = "localhost"; // Registry service host
     private static final int REGISTRY_PORT = 7070; // Registry service port
@@ -212,8 +212,8 @@ public class StorageNode {
             System.out.println("[Storage Node]: file metadata received");
             Metadata metadata = (Metadata) request.getPayload();
             System.out.println("metadata recieved");
-            String filePath = STORAGE_DIRECTORY + File.pathSeparator + this.currentUser.getUsername()
-                    + File.pathSeparator + metadata.getName();
+            String filePath = STORAGE_DIRECTORY + "/" + this.currentUser.getUsername()
+                    + "/" + metadata.getName();
 
             Metadata tempMetadata = this.metadataDao.getMetadata(metadata.getName(), this.currentUser.get_id());
             System.out.println("metadata: " + this.currentUser.get_id());
@@ -357,9 +357,11 @@ public class StorageNode {
             Metadata tempMetaData = this.metadataDao.getMetadata(fileName, this.currentUser.get_id());
             System.out.println("metadata: " + tempMetaData);
             if (tempMetaData == null) {
+                System.out.println("File not found");
                 Response response = new Response(StatusCode.NOT_FOUND, "File not found");
                 out.writeObject(response);
                 out.flush();
+                System.out.println("returning");
                 return;
             }
             this.metadataDao.deleteMetadata(tempMetaData);

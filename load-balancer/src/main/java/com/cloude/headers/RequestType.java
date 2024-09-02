@@ -12,4 +12,5 @@ public enum RequestType {
     REGISTER,
     UNREGISTER,
     PING,
+    UPDATE,
 }

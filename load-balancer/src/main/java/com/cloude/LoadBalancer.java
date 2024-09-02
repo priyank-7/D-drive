@@ -26,6 +26,7 @@ public class LoadBalancer {
     private final TokenManager tokenManager;
     private final ExecutorService threadPool;
 
+    // TODO: update list to data structure that supports concurrent access
     private List<InetSocketAddress> storageNodes = new ArrayList<>();
     private int currentIndex = 0;
 
@@ -132,6 +133,11 @@ public class LoadBalancer {
                     switch (request.getRequestType()) {
                         case PING:
                             handlePingRequest();
+                            clientSocket.close();
+                            return;
+                        case UPDATE:
+                            storageNodes = (List<InetSocketAddress>) request.getPayload();
+                            System.out.println("Updated storage nodes: " + storageNodes);
                             clientSocket.close();
                             return;
                         case AUTHENTICATE:
