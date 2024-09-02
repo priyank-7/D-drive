@@ -115,7 +115,7 @@ public class Registory {
         int failedAttempts = node.getFailedAttempts() + 1;
         node.setFailedAttempts(failedAttempts);
 
-        if (failedAttempts >= MAX_RETRIES) {
+        if (failedAttempts == MAX_RETRIES) {
 
             // TODO
             // Do not remove the node from the registry Insted mark it as unresponsive and
