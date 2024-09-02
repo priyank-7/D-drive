@@ -61,7 +61,7 @@ The system architecture is designed with multiple components that interact to pr
 
 ### File Upload Process:
 
-![System Architecture](Upload_File_Diagram.png)
+![System Architecture](Uploade_File_Diagram.png)
 
 ### File Download Process:
 
