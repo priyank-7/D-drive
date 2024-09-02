@@ -244,8 +244,9 @@ public class StorageNode {
             }
 
             System.out.println("[Storage Node]: Ready to receive file");
+
+            // TODO: chaeck if Folder woth username exists or not
             File file = new File(filePath);
-            // Open the file for writing (append mode)
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 while (true) {
                     Response chunkResponse = (Response) in.readObject();
@@ -364,7 +365,12 @@ public class StorageNode {
                 System.out.println("returning");
                 return;
             }
-            this.metadataDao.deleteMetadata(tempMetaData);
+            if (!this.metadataDao.deleteMetadata(tempMetaData)) {
+                Response response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to delete metadata");
+                out.writeObject(response);
+                out.flush();
+                return;
+            }
             File file = new File(tempMetaData.getPath());
 
             if (file.exists()) {

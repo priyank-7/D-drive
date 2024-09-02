@@ -80,8 +80,15 @@ public class MetadataDao {
         }
     }
 
-    public void deleteMetadata(Metadata tempMetaData) {
+    public boolean deleteMetadata(Metadata tempMetaData) {
+        Document doc = collection.findOneAndDelete(Filters.and(
+                Filters.eq("name", tempMetaData.getName()),
+                Filters.eq("owner", tempMetaData.getOwner())));
 
-        throw new UnsupportedOperationException("Unimplemented method 'deleteMetadata'");
+        if (doc != null) {
+            return true;
+        } else {
+            return false;
+        }
     }
 }
