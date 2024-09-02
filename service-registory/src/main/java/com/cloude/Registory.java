@@ -116,18 +116,19 @@ public class Registory {
         node.setFailedAttempts(failedAttempts);
 
         if (failedAttempts == MAX_RETRIES) {
-
-            // TODO
-            // Do not remove the node from the registry Insted mark it as unresponsive and
-            // keep check its last response time.
-            // If the last response time is greater than the 15 min the remove the node from
-            // the registry and notify the Load Balancer.
-            // Remove queue as well.
-
             System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is unresponsive.");
             // TODO: keep track of failed attempts and mark the node as inactive, If no
             // change happens the no need to send the inactive node to the Load Balancer.
             sendActiveNodesToLoadBalancers();
+        } else if (failedAttempts > MAX_RETRIES) {
+            long currentTime = new Date().getTime();
+            long lastResponseTime = node.getLastResponse().getTime();
+            if (currentTime - lastResponseTime > 900000) { // 15 minutes in milliseconds
+                storageNodes.remove(node.getNodeId());
+
+                // TODO: remove messaging queue as well
+                System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is removed from the registry.");
+            }
         } else {
             node.setStatus(NodeStatus.INACTIVE);
             System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is inactive (Attempt " + failedAttempts
