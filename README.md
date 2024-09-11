@@ -1,12 +1,12 @@
-# 🌩️ Distributed Cloud Storage Project
+# 🌩️ Cloud Storage Project
 
 ## 📚 Overview
 
-Welcome to the Distributed Cloud Storage Project! This system replicates the capabilities of popular cloud storage services like Google Drive, offering a robust solution for storing and managing files across multiple distributed nodes.
+Welcome to the Cloud Storage Project! This system offering a robust solution for storing and managing files across multiple nodes.
 
 ## ✨ Features
 
-- **Distributed File Storage**: Files are stored across multiple storage nodes for redundancy, scalability, and fault tolerance.
+- **File Storage**: Files are stored across multiple storage nodes for redundancy, scalability, and fault tolerance.
 - **Load Balancing**: Efficiently distributes client requests across available storage nodes to ensure optimal performance.
 - **User Authentication**: Secure authentication mechanism before performing any file operations.
 - **File Operations**: Supports `UPLOAD`, `DOWNLOAD`, `LIST`, and `DELETE` commands.
@@ -70,7 +70,3 @@ The system architecture is designed with multiple components that interact to pr
 ### File Deletion Process:
 
 ![System Architecture](Delete_File_Diagram.png)
-
-## 🌟 Acknowledgements
-
-Special thanks to all the developers and contributors who have made this project possible.
