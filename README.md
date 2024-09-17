@@ -55,18 +55,24 @@ Welcome to the Cloud Storage Project! This system offering a robust solution for
 
 The system architecture is designed with multiple components that interact to provide seamless cloud storage functionality. Below is the UML diagram representing the overall architecture:
 
+### Overview:
+
+![System Architecture](System_Overview.png)
+
+![System Architecture](System_Overview_2.png)
+
 ### Service Registry Interaction:
 
 ![System Architecture](diagram.png)
 
 ### File Upload Process:
 
-![System Architecture](Uploade_File_Diagram.png)
+![System Architecture](UploadFile.png)
 
 ### File Download Process:
 
-![System Architecture](Download_File_Diagram.png)
+![System Architecture](DownloadFile.png)
 
 ### File Deletion Process:
 
-![System Architecture](Delete_File_Diagram.png)
+![System Architecture](DeleteFIle.png)
