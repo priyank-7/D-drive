@@ -5,6 +5,10 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.Scanner;
+import java.util.logging.Logger;
+
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.spi.ExtendedLogger;
 
 import com.cloude.Commands.UserCommands;
 import com.cloude.headers.Metadata;
@@ -13,11 +17,17 @@ import com.cloude.headers.RequestType;
 import com.cloude.headers.Response;
 import com.cloude.headers.StatusCode;
 
+// TODO: data security while transferring data between nodes and while stored
+
 public class Client {
+
+    ExtendedLogger logger = LoggerContext.getContext().getLogger(Main.class);
+
     private String loadBalancerHost;
     private int loadBalancerPort;
     private String token;
     private String destinationPath = "/Users/priyankpatel/Downloads";
+    private InetSocketAddress nodeAddr;
     Scanner scanner;
 
     // TODO: Impliment connection timeout
@@ -49,7 +59,8 @@ public class Client {
             switch (command) {
                 case AUTH:
                     if (argument.isEmpty()) {
-                        System.out.println("Requires username:password formate.");
+                        this.logger.warn("Requires a username:password argument");
+                        System.out.println("Requires a username:password argument");
                     } else {
                         String[] credentials = argument.split(":");
                         if (credentials.length != 2) {
@@ -72,8 +83,10 @@ public class Client {
                             System.out.println("Please authenticate first.");
                             break;
                         }
-                        InetSocketAddress nodeAddr = forwardRequest();
-                        if (nodeAddr != null) {
+                        if (this.nodeAddr == null) {
+                            forwardRequest();
+                        }
+                        if (this.nodeAddr != null) {
                             uploadFileToStorageNode(argument, nodeAddr);
                         }
                     }
@@ -87,8 +100,10 @@ public class Client {
                             System.out.println("Please authenticate first.");
                             break;
                         }
-                        InetSocketAddress nodeAddr = forwardRequest();
-                        if (nodeAddr != null) {
+                        if (this.nodeAddr == null) {
+                            forwardRequest();
+                        }
+                        if (this.nodeAddr != null) {
                             downloadFileFromStorageNode(argument, nodeAddr);
                         }
                     }
@@ -102,8 +117,10 @@ public class Client {
                             System.out.println("Please authenticate first.");
                             break;
                         }
-                        InetSocketAddress nodeAddr = forwardRequest();
-                        if (nodeAddr != null) {
+                        if (this.nodeAddr == null) {
+                            forwardRequest();
+                        }
+                        if (this.nodeAddr != null) {
                             deleteFileFromStorageNode(argument, nodeAddr);
                         }
                     }
@@ -114,8 +131,11 @@ public class Client {
                         System.out.println("Please authenticate first.");
                         break;
                     }
-                    InetSocketAddress nodeAddr = forwardRequest();
-                    if (nodeAddr != null) {
+
+                    if (this.nodeAddr == null) {
+                        forwardRequest();
+                    }
+                    if (this.nodeAddr != null) {
                         // listFilesInStorageNode(nodeAddr);
                     }
                     break;
@@ -131,7 +151,7 @@ public class Client {
         }
     }
 
-    private InetSocketAddress forwardRequest() {
+    private void forwardRequest() {
         try (Socket socket = new Socket(loadBalancerHost, loadBalancerPort);
                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
@@ -149,14 +169,14 @@ public class Client {
             System.out.println("[client]: Got sotage node ip and port: " + response.getPayload().toString());
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
-                return (InetSocketAddress) response.getPayload();
+                this.nodeAddr = (InetSocketAddress) response.getPayload();
             } else {
                 System.out.println("Failed to forward request: " + response.getPayload());
-                return null;
+                this.nodeAddr = null;
             }
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
-            return null;
+            this.nodeAddr = null;
         }
     }
 
@@ -196,6 +216,9 @@ public class Client {
                 ObjectOutputStream out = new ObjectOutputStream(storageSocket.getOutputStream());
                 ObjectInputStream in = new ObjectInputStream(storageSocket.getInputStream());
                 FileInputStream fileInput = new FileInputStream(filePath)) {
+
+            // TODO: set time out
+            storageSocket.setSoTimeout(60000);
 
             System.out.println("[Client]: Connected to storage node");
             // Create file metadata to send to the storage node
