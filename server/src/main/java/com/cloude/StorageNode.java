@@ -4,8 +4,10 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -19,8 +21,20 @@ import com.cloude.headers.StatusCode;
 import com.cloude.utilities.NodeType;
 import com.cloude.utilities.PeerRequest;
 
+// TODO Priority: Low: data security while transferring data between nodes and while stored 
+
+// TODO
+/* 
+// Maintain Atomsity while storing/Update data
+// Maintain Consistency during data replicateion and deletion, lock or track the file while updating
+// Impliment Access Control List (ACL) for file access
+// Handle the Failiure of register with registry
+// If there is no response from registry, then try to PING Registory on time interval
+ */
+
 public class StorageNode {
     private ServerSocket serverSocket;
+
     private static final String LOAD_BALANCER_HOST = "localhost";
     private static final int LOAD_BALANCER_PORT = 8080;
     private static final String STORAGE_DIRECTORY = "/Users/priyankpatel/Documents/storage";
@@ -28,8 +42,13 @@ public class StorageNode {
     private static final String REGISTRY_HOST = "localhost"; // Registry service host
     private static final int REGISTRY_PORT = 7070; // Registry service port
 
+    private long lastPingTime;
+    private static final long PING_TIMEOUT = 15000; // 15 seconds
+
     private final ExecutorService threadPool;
     private MetadataDao metadataDao;
+
+    private final BlockingQueue<String> replicationQueue;
 
     public StorageNode(int port) {
         ExecutorService tempThreadPool = null;
@@ -38,12 +57,13 @@ public class StorageNode {
             int poolSize = Runtime.getRuntime().availableProcessors();
             metadataDao = new MetadataDao("ddrive", "metadata");
             System.out.println("Pool size: " + poolSize);
-            tempThreadPool = Executors.newFixedThreadPool(poolSize);
+            tempThreadPool = Executors.newFixedThreadPool(poolSize * 4);
         } catch (IOException e) {
             e.printStackTrace();
             tempThreadPool = Executors.newFixedThreadPool(1); // Default to a single-thread pool in case of error
         } finally {
             this.threadPool = tempThreadPool;
+            this.replicationQueue = new LinkedBlockingQueue<>();
         }
 
         if (registerWithRegistry()) {
@@ -72,7 +92,8 @@ public class StorageNode {
                 ObjectInputStream in = new ObjectInputStream(registrySocket.getInputStream())) {
 
             // Create the registration request
-            // TODO: Get the actual IP address of the storage node
+            // TODO: Get the actual IP address of the storage node (No need to do at this
+            // side, registory will take care)
             PeerRequest regiPeerRequest = PeerRequest.builder()
                     .requestType(RequestType.REGISTER)
                     .nodeType(NodeType.STORAGE_NODE)
@@ -82,6 +103,10 @@ public class StorageNode {
             out.flush();
 
             Response response = (Response) in.readObject();
+            out.writeObject(PeerRequest.builder()
+                    .requestType(RequestType.DISCONNECT)
+                    .build());
+            out.flush();
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 return true;
             } else {
@@ -123,7 +148,10 @@ public class StorageNode {
 
                     if (request.getRequestType() == RequestType.PING) {
                         handlePingRequest();
+                        System.out.println("[Storage Node]: PING request handled");
+                        System.out.println(clientSocket.getInetAddress());
                         clientSocket.close();
+
                         return;
                     }
 
@@ -259,6 +287,15 @@ public class StorageNode {
                     fos.write(chunk, 0, chunkSize);
                     fos.flush();
                 }
+
+                // this.replicationQueue.put(tempMetadata.getPath());
+                // TODO: Spin up a new thread to send data to registory
+
+                replicationQueue.add(tempMetadata.getPath());
+                pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" + metadata.getName());
+                // TODO: based on the method response can impliment retry mechanism for
+                // replication
+
                 out.writeObject(new Response(StatusCode.SUCCESS, "File uploaded successfully"));
                 out.flush();
                 return;
@@ -270,6 +307,7 @@ public class StorageNode {
                 out.writeObject(new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to upload file"));
                 return;
             }
+
         }
 
         // Handle Download File Request
@@ -354,7 +392,6 @@ public class StorageNode {
 
         private void handleDeleteFile(Request request) throws IOException {
             String fileName = (String) request.getPayload();
-
             Metadata tempMetaData = this.metadataDao.getMetadata(fileName, this.currentUser.get_id());
             System.out.println("metadata: " + tempMetaData);
             if (tempMetaData == null) {
@@ -371,8 +408,10 @@ public class StorageNode {
                 out.flush();
                 return;
             }
-            File file = new File(tempMetaData.getPath());
 
+            // TODO: Add info into replication queue and update it with central server
+
+            File file = new File(tempMetaData.getPath());
             if (file.exists()) {
                 if (file.delete()) {
                     Response response = new Response(StatusCode.SUCCESS, "File deleted successfully");
@@ -398,6 +437,30 @@ public class StorageNode {
             } else {
                 Response response = new Response(StatusCode.NOT_FOUND, "File not found");
                 out.writeObject(response);
+            }
+        }
+
+        private boolean pushReplicationDataToRegistory(String path) {
+            try (Socket registorySocket = new Socket(REGISTRY_HOST, REGISTRY_PORT);
+                    ObjectOutputStream out = new ObjectOutputStream(registorySocket.getOutputStream());
+                    ObjectInputStream in = new ObjectInputStream(registorySocket.getInputStream());) {
+
+                out.writeObject(PeerRequest.builder()
+                        .requestType(RequestType.PUSH_DATA)
+                        .socketAddress(new InetSocketAddress("localhost", serverSocket.getLocalPort()))
+                        .payload(path));
+                out.flush();
+                Response response = (Response) in.readObject();
+                out.writeObject(PeerRequest.builder()
+                        .requestType(RequestType.DISCONNECT));
+                out.flush();
+                if (response.getStatusCode() == StatusCode.SUCCESS) {
+                    return true;
+                } else {
+                    return false;
+                }
+            } catch (Exception e) {
+                return false;
             }
         }
     }
