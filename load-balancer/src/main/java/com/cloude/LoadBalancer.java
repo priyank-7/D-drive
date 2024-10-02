@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.spi.ExtendedLogger;
+
 import com.cloude.Token.TokenManager;
 import com.cloude.db.MongoDBConnection;
 import com.cloude.db.User;
@@ -20,7 +23,12 @@ import com.cloude.headers.StatusCode;
 import com.cloude.utilities.NodeType;
 import com.cloude.utilities.PeerRequest;
 
+// TODO: data security while transferring data between nodes and while stored
+
 public class LoadBalancer {
+
+    ExtendedLogger logger = LoggerContext.getContext().getLogger(LoadBalancer.class);
+
     private final ServerSocket serverSocket;
     private final UserDAO userDAO;
     private final TokenManager tokenManager;
@@ -32,30 +40,20 @@ public class LoadBalancer {
 
     // TODO
     /*
-     * Track storage nodes in load balancer.
-     * Assign unique Id to Each storage node to identify them.
-     * Impliment functionality to send request to load balancer and peer node when
-     * any storage node spinup.
-     * Periodically put check on storage nodes to check if they are alive or storage
-     * node send heartbeat to load balancer.
-     * Store unique Id of storage node in each storage node, so that it is usefull
-     * in sending heart beat to load balancer and peer node.
-     * Impliment peer to peer communication between storage nodes and each node
-     * should have track of other alive nodes.
      * Implimnet logic of replication of data between storage nodes in storage node
      * module.
-     * Impliment logic to remove dead storage node from load balancer and peer
-     * storage nodes.
      * Decide How to store files in storage nodes.
      * Put a time to leave on generated tokens.
+     * If there is no response from registry, then try to PING Registory-
+     * on time interval.
      */
 
     public LoadBalancer(int port) {
         try {
             serverSocket = new ServerSocket(port);
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load
-            System.out.println("Pool size: " + poolSize);
-            this.threadPool = Executors.newFixedThreadPool(poolSize);
+            this.threadPool = Executors.newFixedThreadPool(poolSize * 4);
+            logger.info("Thread pool initilized with size: " + poolSize * 4);
             userDAO = new UserDAO(MongoDBConnection.getDatabase("ddrive"));
             tokenManager = new TokenManager();
             // Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
@@ -81,14 +79,16 @@ public class LoadBalancer {
 
             // Receive and handle the response from the registry
             Response response = (Response) in.readObject();
+            // out.writeObject(PeerRequest.builder().requestType(RequestType.DISCONNECT));
+            // out.flush();
             if (response.getStatusCode() == StatusCode.SUCCESS) {
-                System.out.println("LoadBalancer successfully registered with Registory");
+                logger.info("LoadBalancer successfully registered with Registory");
 
                 // Expecting a payload with the list of active storage nodes
                 this.storageNodes = (List<InetSocketAddress>) response.getPayload();
-                System.out.println("Active storage nodes: " + storageNodes);
+                logger.info("Active storage nodes: " + storageNodes);
             } else {
-                System.err.println("Failed to register LoadBalancer with Registory: " + response.getPayload());
+                logger.error("Failed to register LoadBalancer with Registory");
             }
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
@@ -137,7 +137,7 @@ public class LoadBalancer {
                             return;
                         case UPDATE:
                             storageNodes = (List<InetSocketAddress>) request.getPayload();
-                            System.out.println("Updated storage nodes: " + storageNodes);
+                            logger.info("Updated storage nodes: " + storageNodes);
                             clientSocket.close();
                             return;
                         case AUTHENTICATE:
@@ -166,7 +166,6 @@ public class LoadBalancer {
             String[] credentials = ((String) request.getPayload()).split(":");
             String username = credentials[0];
             String password = credentials[1];
-            System.out.println("Username: " + username + ", Password: " + password);
             User user;
             try {
                 user = userDAO.getUserByUsername(username);
@@ -224,12 +223,10 @@ public class LoadBalancer {
         private void handleValidateToken(Request request) throws IOException {
             String token = request.getToken();
             boolean isValid = tokenManager.validateToken(token); // impliment different for storage node
-            // System.out.println("[LoadBalancer]: Is token valid " + isValid);
-            System.out.println("[LoadBalancer]: Token: " + token);
+            // System.out.println("[LoadBalancer]: Is token valid " + isValid)
             Response response;
             if (isValid) {
                 User user = this.userDAO.getUserByUsername(tokenManager.getUsernameFromToken(token));
-                System.out.println("[LoadBalancer]: User: " + user);
                 response = Response.builder()
                         .statusCode(StatusCode.SUCCESS)
                         .payload(user)
@@ -246,6 +243,7 @@ public class LoadBalancer {
         private void handlePingRequest() {
             try {
                 // Send a simple PONG response back to the client
+                logger.info("Received PING request from registry");
                 out.writeObject(new Response(StatusCode.PONG, "PONG"));
                 out.flush();
             } catch (IOException e) {

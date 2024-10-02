@@ -5,7 +5,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.Scanner;
-import java.util.logging.Logger;
 
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.spi.ExtendedLogger;
@@ -21,7 +20,7 @@ import com.cloude.headers.StatusCode;
 
 public class Client {
 
-    ExtendedLogger logger = LoggerContext.getContext().getLogger(Main.class);
+    ExtendedLogger logger = LoggerContext.getContext().getLogger(Client.class);
 
     private String loadBalancerHost;
     private int loadBalancerPort;
@@ -59,7 +58,7 @@ public class Client {
             switch (command) {
                 case AUTH:
                     if (argument.isEmpty()) {
-                        this.logger.warn("Requires a username:password argument");
+                        this.logger.error("Requires a username:password argument");
                         System.out.println("Requires a username:password argument");
                     } else {
                         String[] credentials = argument.split(":");

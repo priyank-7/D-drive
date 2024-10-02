@@ -29,6 +29,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.spi.ExtendedLogger;
+
 // TODO: data security while transferring data between nodes and while stored
 
 public class Registory {
@@ -40,6 +43,8 @@ public class Registory {
      * Impliment logic to detect already existing nodes, which are spin up before
      * the registory server.
      */
+
+    ExtendedLogger logger = LoggerContext.getContext().getLogger(Registory.class);
 
     private static final int HEARTBEAT_INTERVAL = 5000; // 5 seconds
     private static final int HEARTBEAT_TIMEOUT = 2000; // 2 seconds
@@ -56,12 +61,12 @@ public class Registory {
         this.serverSocket = new ServerSocket(port);
         int poolSize = Runtime.getRuntime().availableProcessors();
         this.threadPool = Executors.newFixedThreadPool(poolSize);
-        System.out.println("[Registory] :" + "Server started on port " + port);
+        logger.info("Server started on port " + port);
         startHeartbeatThread();
     }
 
     public void start() {
-        System.out.println("Service Registry is running...");
+        logger.info("Service Registry is running...");
         while (true) {
             try {
                 Socket clientSocket = serverSocket.accept();
@@ -76,22 +81,21 @@ public class Registory {
         try {
             serverSocket.close();
             threadPool.shutdown();
-            System.out.println("Service Registry stopped.");
+            logger.info("Service Registry stopped.");
         } catch (IOException e) {
-            System.err.println("Error closing server socket: " + e.getMessage());
+            e.printStackTrace();
+            logger.error("Error closing server socket");
         }
     }
 
     private void startHeartbeatThread() {
-        System.out.println("[Registory] :" + "Starting heartbeat thread...");
+        logger.info("Starting heartbeat thread...");
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        System.out.println("[Registory] :" + "Heartbeat interval: " + HEARTBEAT_INTERVAL + "ms");
+        logger.info("Heartbeat interval: " + HEARTBEAT_INTERVAL + "ms");
         scheduler.scheduleAtFixedRate(this::sendHeartbeats, 0, HEARTBEAT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
     private void sendHeartbeats() {
-        System.out.println("[Registory] :" + "Sending heartbeats to all nodes...");
-        System.out.println("[Registory] :" + "Storage nodes: " + storageNodes);
         storageNodes.values().forEach(this::sendHeartbeat);
         loadBalancers.values().forEach(this::sendHeartbeat);
     }
@@ -104,7 +108,7 @@ public class Registory {
             Request request = new Request(RequestType.PING);
             out.writeObject(request);
             out.flush();
-            System.out.println("[Registory] :" + "Sent PING to node " + node.getNodeId());
+            logger.info("Sent PING to node " + node.getNodeId());
 
             // Wait for a response within the timeout
             socket.setSoTimeout(HEARTBEAT_TIMEOUT);
@@ -128,14 +132,12 @@ public class Registory {
         node.setFailedAttempts(failedAttempts);
 
         if (failedAttempts == MAX_RETRIES) {
-            System.out.println("Failed attempts: " + failedAttempts);
-            System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is unresponsive.");
+            logger.error("Failed attempts: " + failedAttempts);
+            logger.error("Node " + node.getNodeId() + " is unresponsive.");
             // TODO: keep track of failed attempts and mark the node as inactive, If node
             // change happens the no need to send the inactive node to the Load Balancer.
             sendActiveNodesToLoadBalancers();
         } else if (failedAttempts > MAX_RETRIES) {
-            System.out.println("Failed attempts: " + failedAttempts);
-
             long currentTime = new Date().getTime();
             long lastResponseTime = node.getLastResponse().getTime();
             if (currentTime - lastResponseTime > 900000) { // 15 minutes in milliseconds
@@ -143,12 +145,12 @@ public class Registory {
 
                 // BUG: node is removed from the map before 15 minutes
                 // TODO: remove messaging queue as well
-                System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is removed from the registry.");
+                logger.info("Node " + node.getNodeId() + " is removed from the registry.");
             }
         } else {
             node.setStatus(NodeStatus.INACTIVE);
-            System.out.println("[Registory] :" + "Node " + node.getNodeId() + " is inactive (Attempt " + failedAttempts
-                    + "/" + MAX_RETRIES + ").");
+            logger.error(
+                    "Failed attempts for node" + node.getNodeId() + "(" + failedAttempts + "/" + MAX_RETRIES + ")");
         }
     }
 
@@ -168,8 +170,7 @@ public class Registory {
                 lbOut.writeObject(lbRequest);
                 lbOut.flush();
             } catch (IOException e) {
-                System.err.println(
-                        "[Registory] : Failed to send active node list to Load Balancer " + loadBalancer.getNodeId());
+                logger.error("Failed to send active node list to Load Balancer " + loadBalancer.getNodeId());
             }
         }
     }
@@ -214,7 +215,7 @@ public class Registory {
                 }
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
-                System.err.println("Error handling service: " + e.getMessage());
+                logger.error("Error handling request");
             }
         }
 
@@ -234,11 +235,10 @@ public class Registory {
                  * Make this update for update in data replication, load balancing and
                  */
                 nodeInfo = findExistingNode(storageNodes, request.getSocketAddress());
-                System.out.println("NodeInfo: " + nodeInfo);
                 if (nodeInfo != null) {
                     nodeInfo.setStatus(NodeStatus.ACTIVE);
                     nodeInfo.setLastResponse(new Date());
-                    System.out.println("[Registory] : Storage node re-registered and activated: " + nodeInfo);
+                    logger.info("Storage node re-registered and activated: " + nodeInfo.getNodeId());
                     response = new Response(StatusCode.SUCCESS,
                             "Storage node re-registered and activated successfully");
                 } else {
@@ -253,7 +253,6 @@ public class Registory {
                     response = new Response(StatusCode.SUCCESS, "Storage node registered successfully");
                 }
                 storageNodes.put(nodeInfo.getNodeId(), nodeInfo);
-                System.out.println("NodeInfo: " + nodeInfo);
                 // Adding messaging queue for the storage node
                 messagingQueues.computeIfAbsent(nodeInfo.getNodeId(), v -> new LinkedBlockingQueue<>(100));
                 response = new Response(StatusCode.SUCCESS, "Storage node registered successfully");
@@ -262,11 +261,10 @@ public class Registory {
 
             } else if (request.getNodeType() == NodeType.LOAD_BALANCER) {
                 nodeInfo = findExistingNode(loadBalancers, request.getSocketAddress());
-                System.out.println("NodeInfo: " + nodeInfo);
                 if (nodeInfo != null) {
                     nodeInfo.setStatus(NodeStatus.ACTIVE);
                     nodeInfo.setLastResponse(new Date());
-                    System.out.println("[Registory] : Load Balancer re-registered and activated: " + nodeInfo);
+                    logger.info("Load Balancer re-registered and activated: " + nodeInfo.getNodeId());
                     response = new Response(StatusCode.SUCCESS,
                             "Load Balancer re-registered and activated successfully");
                 } else {
@@ -281,7 +279,6 @@ public class Registory {
                     response = new Response(StatusCode.SUCCESS, "Load Balancer registered successfully");
                 }
                 loadBalancers.put(nodeInfo.getNodeId(), nodeInfo);
-                System.out.println("NodeInfo: " + nodeInfo);
                 List<InetSocketAddress> activeStorageNodes = new ArrayList<>();
                 for (NodeInfo storageNode : storageNodes.values()) {
                     if (storageNode.getStatus() == NodeStatus.ACTIVE) {

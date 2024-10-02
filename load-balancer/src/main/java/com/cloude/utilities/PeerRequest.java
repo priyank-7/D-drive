@@ -1,5 +1,6 @@
 package com.cloude.utilities;
 
+import java.io.Serializable;
 import java.net.InetSocketAddress;
 
 import com.cloude.headers.RequestType;
@@ -17,7 +18,7 @@ import lombok.ToString;
 @NoArgsConstructor
 @ToString
 @Builder
-public class PeerRequest implements java.io.Serializable {
+public class PeerRequest implements Serializable {
 
     private RequestType requestType;
     private NodeType nodeType;

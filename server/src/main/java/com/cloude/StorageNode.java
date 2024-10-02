@@ -8,6 +8,10 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.spi.ExtendedLogger;
+
 import java.util.Arrays;
 import java.util.Date;
 
@@ -33,53 +37,48 @@ import com.cloude.utilities.PeerRequest;
  */
 
 public class StorageNode {
+
+    ExtendedLogger logger = LoggerContext.getContext().getLogger(StorageNode.class);
+
     private ServerSocket serverSocket;
 
     private static final String LOAD_BALANCER_HOST = "localhost";
     private static final int LOAD_BALANCER_PORT = 8080;
-    private static final String STORAGE_DIRECTORY = "/Users/priyankpatel/Documents/storage";
-
     private static final String REGISTRY_HOST = "localhost"; // Registry service host
     private static final int REGISTRY_PORT = 7070; // Registry service port
-
+    private static final String STORAGE_DIRECTORY = System.getProperty("user.home") + "/ddrive-storage";
     private long lastPingTime;
     private static final long PING_TIMEOUT = 15000; // 15 seconds
 
     private final ExecutorService threadPool;
     private MetadataDao metadataDao;
-
     private final BlockingQueue<String> replicationQueue;
 
     public StorageNode(int port) {
-        ExecutorService tempThreadPool = null;
+        this.threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        this.replicationQueue = new LinkedBlockingQueue<>();
         try {
             serverSocket = new ServerSocket(port);
             int poolSize = Runtime.getRuntime().availableProcessors();
             metadataDao = new MetadataDao("ddrive", "metadata");
-            System.out.println("Pool size: " + poolSize);
-            tempThreadPool = Executors.newFixedThreadPool(poolSize * 4);
+            logger.info("Thread pool size: " + poolSize);
         } catch (IOException e) {
             e.printStackTrace();
-            tempThreadPool = Executors.newFixedThreadPool(1); // Default to a single-thread pool in case of error
-        } finally {
-            this.threadPool = tempThreadPool;
-            this.replicationQueue = new LinkedBlockingQueue<>();
         }
-
         if (registerWithRegistry()) {
-            System.out.println("Successfully registered with the Registry");
+            logger.info("Successfully registered with the Registry");
         } else {
-            System.out.println("Failed to register with the Registry");
+            logger.error("Failed to register with the Registry");
         }
     }
 
     public void start() {
-        System.out.println("[Storage Node]: Listening on port " + serverSocket.getLocalPort());
+        logger.info("Listening on port " + serverSocket.getLocalPort());
         while (true) {
             try {
                 Socket clientSocket = serverSocket.accept();
                 threadPool.submit(new ClientHandler(clientSocket, this.metadataDao));
-                System.out.println("[Storage Node]: Accepted connection from " + clientSocket.getPort());
+                logger.info("Accepted connection from " + clientSocket.getPort());
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -110,7 +109,7 @@ public class StorageNode {
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 return true;
             } else {
-                System.out.println("Registry registration failed: " + response.getPayload());
+                logger.error("Registry registration failed: " + response.getPayload());
                 return false;
             }
         } catch (IOException | ClassNotFoundException e) {
@@ -141,15 +140,14 @@ public class StorageNode {
         public void run() {
             try {
                 while (true) {
-                    System.out.println("[Storage Node]: Waiting for requests...");
+                    logger.info("Waiting for requests...");
                     Request request = (Request) in.readObject();
                     String token = request.getToken();
-                    System.out.println("[Storage Node]: Received request: " + request.getRequestType());
+                    logger.info("Request received: " + request.getRequestType());
 
                     if (request.getRequestType() == RequestType.PING) {
                         handlePingRequest();
-                        System.out.println("[Storage Node]: PING request handled");
-                        System.out.println(clientSocket.getInetAddress());
+                        logger.info("PING request handled");
                         clientSocket.close();
 
                         return;
@@ -170,7 +168,7 @@ public class StorageNode {
                                 handleGetMetadata(request);
                                 break;
                             case DISCONNECT:
-                                System.out.println("[Storage Node]: Disconnecting client");
+                                logger.info("Disconnecting client");
                                 clientSocket.close();
                                 return;
                             default:
@@ -185,7 +183,7 @@ public class StorageNode {
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             } finally {
-                System.out.println("[Storage Node]: Closing connection");
+                logger.info("Closing connection");
                 try {
                     if (!clientSocket.isClosed()) {
                         clientSocket.close(); // Ensure the socket is closed in case of exceptions
@@ -220,7 +218,6 @@ public class StorageNode {
                 loadBalancerOut.flush();
                 Response response = (Response) loadBalancerIn.readObject();
                 loadBalancerOut.writeObject(new Request(RequestType.DISCONNECT));
-                System.out.println("[Storage Node]: Token validation response: " + response);
                 if (response.getStatusCode() == StatusCode.SUCCESS) {
                     this.currentUser = (User) response.getPayload();
 
@@ -237,14 +234,12 @@ public class StorageNode {
         // Handle Upload File Request
 
         private void handleUploadFile(Request request) throws IOException {
-            System.out.println("[Storage Node]: file metadata received");
+            logger.info("uploade file request receved");
             Metadata metadata = (Metadata) request.getPayload();
-            System.out.println("metadata recieved");
-            String filePath = STORAGE_DIRECTORY + "/" + this.currentUser.getUsername()
-                    + "/" + metadata.getName();
-
+            logger.info("metada recieved");
+            String directoryPath = STORAGE_DIRECTORY + "/" + this.currentUser.getUsername();
+            String filePath = directoryPath + "/" + metadata.getName();
             Metadata tempMetadata = this.metadataDao.getMetadata(metadata.getName(), this.currentUser.get_id());
-            System.out.println("metadata: " + this.currentUser.get_id());
             if (tempMetadata == null) {
                 tempMetadata = Metadata.builder()
                         .name(metadata.getName())
@@ -255,26 +250,26 @@ public class StorageNode {
                         .createdDate(new Date())
                         .modifiedDate(new Date())
                         .build();
-                System.out.println("Metadata: " + tempMetadata);
                 if (this.metadataDao.saveMetadata(tempMetadata)) {
-                    System.out.println("Metadata saved successfully");
+                    logger.info("Metadata saved ");
                     out.writeObject(new Response(StatusCode.SUCCESS, "File Created Successfully"));
                     out.flush();
                 } else {
+                    logger.error("Error to save metadata");
                     out.writeObject(new Response(StatusCode.INTERNAL_SERVER_ERROR, "Error to save metadata"));
                     out.flush();
                 }
             } else {
                 tempMetadata.setModifiedDate(new Date());
                 tempMetadata.setSize(metadata.getSize());
-                this.metadataDao.updateMetadata(tempMetadata.getName(), this.currentUser.get_id(), tempMetadata);
                 out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
             }
-
-            System.out.println("[Storage Node]: Ready to receive file");
-
-            // TODO: chaeck if Folder woth username exists or not
+            logger.info("Ready to receive file");
             File file = new File(filePath);
+            File directory = new File(directoryPath);
+            if (!directory.exists() && !directory.mkdirs()) {
+                logger.info("Failed to create directory with username");
+            }
             try (FileOutputStream fos = new FileOutputStream(file)) {
                 while (true) {
                     Response chunkResponse = (Response) in.readObject();
@@ -346,9 +341,9 @@ public class StorageNode {
                 try {
                     Response clientResponse = (Response) in.readObject();
                     if (clientResponse.getStatusCode() == StatusCode.SUCCESS) {
-                        System.out.println("[StorageNode]: Client acknowledged metadata receipt.");
+                        logger.info("Client acknowledged metadata receipt.");
                     } else {
-                        System.out.println("[StorageNode]: Client failed to acknowledge metadata receipt.");
+                        logger.error("Client failed to acknowledge metadata receipt.");
                         return;
                     }
                 } catch (ClassNotFoundException e) {
@@ -369,7 +364,6 @@ public class StorageNode {
                         out.writeObject(response);
                         out.flush();
                     }
-
                     // Signal the end of the file transmission
                     response = Response.builder()
                             .statusCode(StatusCode.EOF)
@@ -395,14 +389,14 @@ public class StorageNode {
             Metadata tempMetaData = this.metadataDao.getMetadata(fileName, this.currentUser.get_id());
             System.out.println("metadata: " + tempMetaData);
             if (tempMetaData == null) {
-                System.out.println("File not found");
+                logger.warn("File not found");
                 Response response = new Response(StatusCode.NOT_FOUND, "File not found");
                 out.writeObject(response);
                 out.flush();
-                System.out.println("returning");
                 return;
             }
             if (!this.metadataDao.deleteMetadata(tempMetaData)) {
+                logger.error("Failed to delete metadata");
                 Response response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to delete metadata");
                 out.writeObject(response);
                 out.flush();
