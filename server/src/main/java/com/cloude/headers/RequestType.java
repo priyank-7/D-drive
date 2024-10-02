@@ -12,4 +12,6 @@ public enum RequestType {
     REGISTER,
     UNREGISTER,
     PING,
+    PUSH_DATA,
+    PULL_DATA
 }
