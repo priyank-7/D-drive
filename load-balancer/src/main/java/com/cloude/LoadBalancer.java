@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.spi.ExtendedLogger;
 
 import com.cloude.Token.TokenManager;
 import com.cloude.db.MongoDBConnection;
@@ -27,7 +27,7 @@ import com.cloude.utilities.PeerRequest;
 
 public class LoadBalancer {
 
-    ExtendedLogger logger = LoggerContext.getContext().getLogger(LoadBalancer.class);
+    org.apache.logging.log4j.core.Logger logger = LoggerContext.getContext().getLogger(LoadBalancer.class.getName());
 
     private final ServerSocket serverSocket;
     private final UserDAO userDAO;
@@ -49,6 +49,7 @@ public class LoadBalancer {
      */
 
     public LoadBalancer(int port) {
+        this.logger.setLevel(Level.INFO);
         try {
             serverSocket = new ServerSocket(port);
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load

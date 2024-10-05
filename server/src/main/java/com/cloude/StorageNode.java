@@ -8,9 +8,10 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.spi.ExtendedLogger;
 
 import java.util.Arrays;
 import java.util.Date;
@@ -38,7 +39,7 @@ import com.cloude.utilities.PeerRequest;
 
 public class StorageNode {
 
-    ExtendedLogger logger = LoggerContext.getContext().getLogger(StorageNode.class);
+    org.apache.logging.log4j.core.Logger logger = LoggerContext.getContext().getLogger(StorageNode.class.getName());
 
     private ServerSocket serverSocket;
 
@@ -55,6 +56,8 @@ public class StorageNode {
     private final BlockingQueue<String> replicationQueue;
 
     public StorageNode(int port) {
+
+        this.logger.setLevel(org.apache.logging.log4j.Level.INFO);
         this.threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         this.replicationQueue = new LinkedBlockingQueue<>();
         try {
@@ -68,6 +71,7 @@ public class StorageNode {
         if (registerWithRegistry()) {
             logger.info("Successfully registered with the Registry");
         } else {
+
             logger.error("Failed to register with the Registry");
         }
     }
@@ -140,16 +144,12 @@ public class StorageNode {
         public void run() {
             try {
                 while (true) {
-                    logger.info("Waiting for requests...");
                     Request request = (Request) in.readObject();
                     String token = request.getToken();
-                    logger.info("Request received: " + request.getRequestType());
 
                     if (request.getRequestType() == RequestType.PING) {
                         handlePingRequest();
-                        logger.info("PING request handled");
                         clientSocket.close();
-
                         return;
                     }
 
@@ -396,7 +396,7 @@ public class StorageNode {
                 return;
             }
             if (!this.metadataDao.deleteMetadata(tempMetaData)) {
-                logger.error("Failed to delete metadata");
+                logger.warn("Failed to delete metadata");
                 Response response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to delete metadata");
                 out.writeObject(response);
                 out.flush();

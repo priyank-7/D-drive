@@ -30,7 +30,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.spi.ExtendedLogger;
 
 // TODO: data security while transferring data between nodes and while stored
 
@@ -44,7 +43,11 @@ public class Registory {
      * the registory server.
      */
 
-    ExtendedLogger logger = LoggerContext.getContext().getLogger(Registory.class);
+    // LoggerContext context = (LoggerContext) LogManager.getLogger();
+    // private org.apache.logging.log4j.core.Logger logger =
+    // context.getLogger(Registory.class.getName());
+
+    org.apache.logging.log4j.core.Logger logger = LoggerContext.getContext().getLogger(Registory.class.getName());
 
     private static final int HEARTBEAT_INTERVAL = 5000; // 5 seconds
     private static final int HEARTBEAT_TIMEOUT = 2000; // 2 seconds
@@ -58,10 +61,11 @@ public class Registory {
     private static final ConcurrentHashMap<String, BlockingQueue<String>> messagingQueues = new ConcurrentHashMap<>();
 
     public Registory(int port) throws IOException {
+        this.logger.setLevel(org.apache.logging.log4j.Level.INFO);
         this.serverSocket = new ServerSocket(port);
         int poolSize = Runtime.getRuntime().availableProcessors();
         this.threadPool = Executors.newFixedThreadPool(poolSize);
-        logger.info("Server started on port " + port);
+        this.logger.info("Server started on port " + port);
         startHeartbeatThread();
     }
 
@@ -81,17 +85,17 @@ public class Registory {
         try {
             serverSocket.close();
             threadPool.shutdown();
-            logger.info("Service Registry stopped.");
+            this.logger.info("Service Registry stopped.");
         } catch (IOException e) {
             e.printStackTrace();
-            logger.error("Error closing server socket");
+            this.logger.error("Error closing server socket");
         }
     }
 
     private void startHeartbeatThread() {
-        logger.info("Starting heartbeat thread...");
+        this.logger.info("Starting heartbeat thread...");
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-        logger.info("Heartbeat interval: " + HEARTBEAT_INTERVAL + "ms");
+        this.logger.info("Heartbeat interval: " + HEARTBEAT_INTERVAL + "ms");
         scheduler.scheduleAtFixedRate(this::sendHeartbeats, 0, HEARTBEAT_INTERVAL, TimeUnit.MILLISECONDS);
     }
 
@@ -108,7 +112,7 @@ public class Registory {
             Request request = new Request(RequestType.PING);
             out.writeObject(request);
             out.flush();
-            logger.info("Sent PING to node " + node.getNodeId());
+            this.logger.info("Sent PING to node " + node.getNodeId());
 
             // Wait for a response within the timeout
             socket.setSoTimeout(HEARTBEAT_TIMEOUT);
@@ -132,8 +136,7 @@ public class Registory {
         node.setFailedAttempts(failedAttempts);
 
         if (failedAttempts == MAX_RETRIES) {
-            logger.error("Failed attempts: " + failedAttempts);
-            logger.error("Node " + node.getNodeId() + " is unresponsive.");
+            this.logger.error("Failed attempts: " + failedAttempts + " Node " + node.getNodeId() + " is unresponsive.");
             // TODO: keep track of failed attempts and mark the node as inactive, If node
             // change happens the no need to send the inactive node to the Load Balancer.
             sendActiveNodesToLoadBalancers();
@@ -149,7 +152,7 @@ public class Registory {
             }
         } else {
             node.setStatus(NodeStatus.INACTIVE);
-            logger.error(
+            this.logger.error(
                     "Failed attempts for node" + node.getNodeId() + "(" + failedAttempts + "/" + MAX_RETRIES + ")");
         }
     }
@@ -170,7 +173,7 @@ public class Registory {
                 lbOut.writeObject(lbRequest);
                 lbOut.flush();
             } catch (IOException e) {
-                logger.error("Failed to send active node list to Load Balancer " + loadBalancer.getNodeId());
+                this.logger.error("Failed to send active node list to Load Balancer " + loadBalancer.getNodeId());
             }
         }
     }
@@ -260,6 +263,7 @@ public class Registory {
                 sendActiveNodesToLoadBalancers();
 
             } else if (request.getNodeType() == NodeType.LOAD_BALANCER) {
+
                 nodeInfo = findExistingNode(loadBalancers, request.getSocketAddress());
                 if (nodeInfo != null) {
                     nodeInfo.setStatus(NodeStatus.ACTIVE);

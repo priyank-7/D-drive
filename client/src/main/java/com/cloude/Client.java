@@ -6,8 +6,8 @@ import java.net.Socket;
 import java.util.Arrays;
 import java.util.Scanner;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LoggerContext;
-import org.apache.logging.log4j.spi.ExtendedLogger;
 
 import com.cloude.Commands.UserCommands;
 import com.cloude.headers.Metadata;
@@ -20,12 +20,12 @@ import com.cloude.headers.StatusCode;
 
 public class Client {
 
-    ExtendedLogger logger = LoggerContext.getContext().getLogger(Client.class);
+    org.apache.logging.log4j.core.Logger logger = LoggerContext.getContext().getLogger(Client.class.getName());
 
     private String loadBalancerHost;
     private int loadBalancerPort;
     private String token;
-    private String destinationPath = "/Users/priyankpatel/Downloads";
+    private String destinationPath = System.getProperty("user.home") + "/Downloads";
     private InetSocketAddress nodeAddr;
     Scanner scanner;
 
@@ -33,6 +33,7 @@ public class Client {
     // TODO: Impliment TCP Blocking Queue for multiple requests
 
     public Client(String loadBalancerHost, int loadBalancerPort) {
+        this.logger.setLevel(Level.INFO);
         this.loadBalancerHost = loadBalancerHost;
         this.loadBalancerPort = loadBalancerPort;
         scanner = new Scanner(System.in);
