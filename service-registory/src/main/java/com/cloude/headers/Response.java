@@ -19,6 +19,10 @@ public class Response implements java.io.Serializable {
     private byte[] data;
     private int dataSize;
 
+    public Response(StatusCode statusCode) {
+        this.statusCode = statusCode;
+    }
+
     public Response(StatusCode statusCode, Object payload) {
         this.statusCode = statusCode;
         this.payload = payload;

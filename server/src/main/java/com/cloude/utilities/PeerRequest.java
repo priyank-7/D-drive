@@ -24,6 +24,13 @@ public class PeerRequest implements java.io.Serializable {
     private InetSocketAddress socketAddress;
     private Object payload;
 
+    public PeerRequest(RequestType requestType, InetSocketAddress socketAddress, NodeType nodeType, Object payload) {
+        this.requestType = requestType;
+        this.socketAddress = socketAddress;
+        this.nodeType = nodeType;
+        this.payload = payload;
+    }
+
     public PeerRequest(RequestType requestType, InetSocketAddress socketAddress, NodeType nodeType) {
         this.requestType = requestType;
         this.socketAddress = socketAddress;

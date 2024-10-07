@@ -208,6 +208,10 @@ public class Registory {
                             break;
                         case PUSH_DATA:
                             handlePushDateRequest(request);
+                            break;
+                        case DELETE_DATA:
+                            // TODO: Implement delete data request
+                            handleDeleteDateRequest(request);
                         case DISCONNECT:
                             clientSocket.close();
                             return;
@@ -225,6 +229,7 @@ public class Registory {
         private void handleRegisterRequest(PeerRequest request) throws IOException {
             NodeInfo nodeInfo;
             Response response;
+            InetSocketAddress address = request.getSocketAddress();
             if (request.getNodeType() == NodeType.STORAGE_NODE) {
 
                 // TODO:
@@ -237,7 +242,8 @@ public class Registory {
                  * Get IP and Port of client socket Dynamic insted of getting from request
                  * Make this update for update in data replication, load balancing and
                  */
-                nodeInfo = findExistingNode(storageNodes, request.getSocketAddress());
+                nodeInfo = findExistingNode(storageNodes,
+                        new InetSocketAddress(this.clientSocket.getInetAddress(), address.getPort()));
                 if (nodeInfo != null) {
                     nodeInfo.setStatus(NodeStatus.ACTIVE);
                     nodeInfo.setLastResponse(new Date());
@@ -248,7 +254,7 @@ public class Registory {
                     nodeInfo = NodeInfo.builder()
                             .nodeId(UUID.randomUUID().toString())
                             .nodetype(request.getNodeType())
-                            .nodeAddress(request.getSocketAddress())
+                            .nodeAddress(new InetSocketAddress(this.clientSocket.getInetAddress(), address.getPort()))
                             .status(NodeStatus.ACTIVE)
                             .registrationTime(new Date())
                             .lastResponse(new Date())
@@ -264,7 +270,8 @@ public class Registory {
 
             } else if (request.getNodeType() == NodeType.LOAD_BALANCER) {
 
-                nodeInfo = findExistingNode(loadBalancers, request.getSocketAddress());
+                nodeInfo = findExistingNode(loadBalancers,
+                        new InetSocketAddress(this.clientSocket.getInetAddress(), address.getPort()));
                 if (nodeInfo != null) {
                     nodeInfo.setStatus(NodeStatus.ACTIVE);
                     nodeInfo.setLastResponse(new Date());
@@ -275,7 +282,7 @@ public class Registory {
                     nodeInfo = NodeInfo.builder()
                             .nodeId(UUID.randomUUID().toString())
                             .nodetype(request.getNodeType())
-                            .nodeAddress(request.getSocketAddress())
+                            .nodeAddress(new InetSocketAddress(this.clientSocket.getInetAddress(), address.getPort()))
                             .status(NodeStatus.ACTIVE)
                             .registrationTime(new Date())
                             .lastResponse(new Date())
@@ -330,7 +337,9 @@ public class Registory {
             String storageNodeId = getStorageNodeId(request.getSocketAddress());
             if (storageNodeId == null) {
                 try {
-                    out.writeObject(Response.builder().statusCode(StatusCode.INTERNAL_SERVER_ERROR));
+                    out.writeObject(Response.builder()
+                            .statusCode(StatusCode.INTERNAL_SERVER_ERROR)
+                            .build());
                     out.flush();
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -341,15 +350,27 @@ public class Registory {
 
                 for (String nodeId : messagingQueues.keySet()) {
                     if (!nodeId.equals(storageNodeId)) {
+                        // TODO
+                        /*
+                         * Add address of the storage from where to get Data.
+                         * For that modify the messaging queue to store the address of the storage node
+                         */
                         messagingQueues.get(nodeId).put(request.getPayload().toString());
                     }
                 }
-                out.writeObject(Response.builder().statusCode(StatusCode.SUCCESS));
+                out.writeObject(Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .build());
                 out.flush();
+                System.out.println(messagingQueues);
             } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             }
 
+        }
+
+        private void handleDeleteDateRequest(PeerRequest request) {
+            // TODO: Implement delete data request
         }
 
         private String getStorageNodeId(InetSocketAddress address) {

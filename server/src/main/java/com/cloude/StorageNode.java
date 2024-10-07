@@ -35,6 +35,7 @@ import com.cloude.utilities.PeerRequest;
 // Impliment Access Control List (ACL) for file access
 // Handle the Failiure of register with registry
 // If there is no response from registry, then try to PING Registory on time interval
+// Validatetoken() takes hardcodded value for LOAD_BALANCER_HOST and LOAD_BALANCER_PORT, make it dynamic
  */
 
 public class StorageNode {
@@ -65,14 +66,15 @@ public class StorageNode {
             int poolSize = Runtime.getRuntime().availableProcessors();
             metadataDao = new MetadataDao("ddrive", "metadata");
             logger.info("Thread pool size: " + poolSize);
+            if (!registerWithRegistry()) {
+                logger.error("Failed to register with the Registry");
+                throw new Exception("Failed to register with the Registry");
+            }
+            logger.info("Successfully registered with the Registry");
         } catch (IOException e) {
             e.printStackTrace();
-        }
-        if (registerWithRegistry()) {
-            logger.info("Successfully registered with the Registry");
-        } else {
-
-            logger.error("Failed to register with the Registry");
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -287,7 +289,8 @@ public class StorageNode {
                 // TODO: Spin up a new thread to send data to registory
 
                 replicationQueue.add(tempMetadata.getPath());
-                pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" + metadata.getName());
+                pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" + metadata.getName(),
+                        RequestType.PUSH_DATA);
                 // TODO: based on the method response can impliment retry mechanism for
                 // replication
 
@@ -408,6 +411,20 @@ public class StorageNode {
             File file = new File(tempMetaData.getPath());
             if (file.exists()) {
                 if (file.delete()) {
+
+                    // TODO
+                    /*
+                     * // this.replicationQueue.put(tempMetadata.getPath());
+                     * // TODO: Spin up a new thread to send data to registory
+                     * replicationQueue.add(this.currentUser.getUsername() + "/" +
+                     * tempMetaData.getName());
+                     * pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" +
+                     * tempMetaData.getName(),
+                     * RequestType.DELETE_DATA);
+                     * // TODO: based on the method response can impliment retry mechanism for
+                     * // replication
+                     */
+
                     Response response = new Response(StatusCode.SUCCESS, "File deleted successfully");
                     out.writeObject(response);
                 } else {
@@ -434,20 +451,25 @@ public class StorageNode {
             }
         }
 
-        private boolean pushReplicationDataToRegistory(String path) {
+        private boolean pushReplicationDataToRegistory(String path, RequestType requestType) {
             try (Socket registorySocket = new Socket(REGISTRY_HOST, REGISTRY_PORT);
                     ObjectOutputStream out = new ObjectOutputStream(registorySocket.getOutputStream());
                     ObjectInputStream in = new ObjectInputStream(registorySocket.getInputStream());) {
 
                 out.writeObject(PeerRequest.builder()
-                        .requestType(RequestType.PUSH_DATA)
+                        .requestType(requestType)
                         .socketAddress(new InetSocketAddress("localhost", serverSocket.getLocalPort()))
-                        .payload(path));
+                        .nodeType(NodeType.STORAGE_NODE)
+                        .payload(path)
+                        .build());
                 out.flush();
+
                 Response response = (Response) in.readObject();
                 out.writeObject(PeerRequest.builder()
-                        .requestType(RequestType.DISCONNECT));
+                        .requestType(RequestType.DISCONNECT)
+                        .build());
                 out.flush();
+
                 if (response.getStatusCode() == StatusCode.SUCCESS) {
                     return true;
                 } else {

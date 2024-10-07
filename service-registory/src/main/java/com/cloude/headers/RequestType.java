@@ -1,5 +1,14 @@
 package com.cloude.headers;
 
 public enum RequestType {
-    REGISTER, UNREGISTER, HEARTBEAT, LOOKUP, DISCONNECT, PING, UPDATE, PUSH_DATA, PULL_DATA
+    REGISTER,
+    UNREGISTER,
+    HEARTBEAT,
+    LOOKUP,
+    DISCONNECT,
+    PING,
+    UPDATE,
+    PUSH_DATA,
+    PULL_DATA,
+    DELETE_DATA
 }

@@ -13,5 +13,6 @@ public enum RequestType {
     UNREGISTER,
     PING,
     PUSH_DATA,
-    PULL_DATA
+    PULL_DATA,
+    DELETE_DATA
 }
