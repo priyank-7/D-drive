@@ -212,6 +212,8 @@ public class Registory {
                         case DELETE_DATA:
                             // TODO: Implement delete data request
                             handleDeleteDateRequest(request);
+                        case FORWARD_REQUEST:
+                            handleForwardRequest(request);
                         case DISCONNECT:
                             clientSocket.close();
                             return;
@@ -224,6 +226,31 @@ public class Registory {
                 e.printStackTrace();
                 logger.error("Error handling request");
             }
+        }
+
+        private void handleForwardRequest(PeerRequest request) {
+            try {
+                if (loadBalancers.isEmpty()) {
+                    out.writeObject(Response.builder()
+                            .statusCode(StatusCode.INTERNAL_SERVER_ERROR)
+                            .payload("No active load balancer found")
+                            .build());
+                    out.flush();
+                } else {
+
+                    for (NodeInfo lb : loadBalancers.values()) {
+                        out.writeObject(Response.builder()
+                                .statusCode(StatusCode.SUCCESS)
+                                .payload(lb.getNodeAddress())
+                                .build());
+                        out.flush();
+                        break;
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return;
         }
 
         private void handleRegisterRequest(PeerRequest request) throws IOException {
