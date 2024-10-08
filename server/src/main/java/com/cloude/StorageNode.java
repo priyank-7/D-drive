@@ -8,8 +8,6 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.logging.log4j.core.LoggerContext;
 
@@ -44,8 +42,6 @@ public class StorageNode {
 
     private ServerSocket serverSocket;
 
-    private static final String LOAD_BALANCER_HOST = "localhost";
-    private static final int LOAD_BALANCER_PORT = 8080;
     private static final String REGISTRY_HOST = "localhost"; // Registry service host
     private static final int REGISTRY_PORT = 7070; // Registry service port
     private static final String STORAGE_DIRECTORY = System.getProperty("user.home") + "/ddrive-storage";
@@ -207,7 +203,14 @@ public class StorageNode {
         }
 
         private boolean validateTokenWithLoadBalancer(String token) {
-            try (Socket loadBalancerSocket = new Socket(LOAD_BALANCER_HOST, LOAD_BALANCER_PORT);
+
+            InetSocketAddress lbInetSocketAddress = getLoadBalancerAddress();
+            if (lbInetSocketAddress == null) {
+                logger.error("LB address receved NULL, returning false");
+                return false;
+            }
+            try (Socket loadBalancerSocket = new Socket(lbInetSocketAddress.getAddress(),
+                    lbInetSocketAddress.getPort());
                     ObjectOutputStream loadBalancerOut = new ObjectOutputStream(loadBalancerSocket.getOutputStream());
                     ObjectInputStream loadBalancerIn = new ObjectInputStream(loadBalancerSocket.getInputStream())) {
 
@@ -264,6 +267,8 @@ public class StorageNode {
             } else {
                 tempMetadata.setModifiedDate(new Date());
                 tempMetadata.setSize(metadata.getSize());
+                this.metadataDao.updateMetadata(tempMetadata.getName(), this.currentUser.get_id(), tempMetadata);
+                logger.info("File details ");
                 out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
             }
             logger.info("Ready to receive file");
@@ -399,7 +404,7 @@ public class StorageNode {
                 return;
             }
             if (!this.metadataDao.deleteMetadata(tempMetaData)) {
-                logger.warn("Failed to delete metadata");
+                logger.error("Failed to delete metadata");
                 Response response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to delete metadata");
                 out.writeObject(response);
                 out.flush();
@@ -477,6 +482,36 @@ public class StorageNode {
                 }
             } catch (Exception e) {
                 return false;
+            }
+        }
+
+        private InetSocketAddress getLoadBalancerAddress() {
+            try (Socket socket = new Socket(REGISTRY_HOST, REGISTRY_PORT);
+                    ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                    ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+
+                // Send a request to forward to the correct storage node
+                PeerRequest forwardRequest = PeerRequest.builder()
+                        .requestType(RequestType.FORWARD_REQUEST)
+                        .build();
+
+                out.writeObject(forwardRequest);
+                out.flush();
+
+                Response response = (Response) in.readObject();
+                out.writeObject(new Request(RequestType.DISCONNECT));
+                out.flush();
+
+                if (response.getStatusCode() == StatusCode.SUCCESS) {
+                    logger.info("LB Address receved from Registory");
+                    return (InetSocketAddress) response.getPayload();
+                } else {
+                    logger.warn("Failed to get load balancer address");
+                    return null;
+                }
+            } catch (IOException | ClassNotFoundException e) {
+                logger.error("Failed to get load balancer address");
+                return null;
             }
         }
     }
