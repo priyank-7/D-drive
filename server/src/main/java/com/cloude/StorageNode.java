@@ -33,7 +33,6 @@ import com.cloude.utilities.PeerRequest;
 // Impliment Access Control List (ACL) for file access
 // Handle the Failiure of register with registry
 // If there is no response from registry, then try to PING Registory on time interval
-// Validatetoken() takes hardcodded value for LOAD_BALANCER_HOST and LOAD_BALANCER_PORT, make it dynamic
  */
 
 public class StorageNode {
@@ -497,11 +496,13 @@ public class StorageNode {
 
                 out.writeObject(forwardRequest);
                 out.flush();
+                logger.info("Request sent to Registory");
 
                 Response response = (Response) in.readObject();
                 out.writeObject(new Request(RequestType.DISCONNECT));
                 out.flush();
 
+                logger.info("Response received from Registory " + response.getStatusCode());
                 if (response.getStatusCode() == StatusCode.SUCCESS) {
                     logger.info("LB Address receved from Registory");
                     return (InetSocketAddress) response.getPayload();

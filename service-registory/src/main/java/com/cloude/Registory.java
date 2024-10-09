@@ -8,6 +8,7 @@ import com.cloude.utilities.NodeInfo;
 import com.cloude.utilities.NodeStatus;
 import com.cloude.utilities.NodeType;
 import com.cloude.utilities.PeerRequest;
+import com.cloude.utilities.ReplicateRequest;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -58,7 +59,7 @@ public class Registory {
 
     private static final ConcurrentHashMap<String, NodeInfo> storageNodes = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, NodeInfo> loadBalancers = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<String, BlockingQueue<String>> messagingQueues = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, BlockingQueue<ReplicateRequest>> messagingQueues = new ConcurrentHashMap<>();
 
     public Registory(int port) throws IOException {
         this.logger.setLevel(org.apache.logging.log4j.Level.INFO);
@@ -231,6 +232,7 @@ public class Registory {
         private void handleForwardRequest(PeerRequest request) {
             try {
                 if (loadBalancers.isEmpty()) {
+                    logger.info("No active load balancer found");
                     out.writeObject(Response.builder()
                             .statusCode(StatusCode.INTERNAL_SERVER_ERROR)
                             .payload("No active load balancer found")
@@ -239,11 +241,13 @@ public class Registory {
                 } else {
 
                     for (NodeInfo lb : loadBalancers.values()) {
+                        logger.info("Forwarding request to load balancer: " + lb.getNodeId());
                         out.writeObject(Response.builder()
                                 .statusCode(StatusCode.SUCCESS)
                                 .payload(lb.getNodeAddress())
                                 .build());
                         out.flush();
+                        logger.info("successfully send lb address to storage node");
                         break;
                     }
                 }
@@ -382,7 +386,11 @@ public class Registory {
                          * Add address of the storage from where to get Data.
                          * For that modify the messaging queue to store the address of the storage node
                          */
-                        messagingQueues.get(nodeId).put(request.getPayload().toString());
+                        messagingQueues.get(nodeId).put(ReplicateRequest.builder()
+                                .requestType(RequestType.PUSH_DATA)
+                                .address(storageNodes.get(storageNodeId).getNodeAddress())
+                                .filePath(request.getPayload().toString())
+                                .build());
                     }
                 }
                 out.writeObject(Response.builder()
@@ -398,6 +406,46 @@ public class Registory {
 
         private void handleDeleteDateRequest(PeerRequest request) {
             // TODO: Implement delete data request
+
+            // BUG: Handle Null response
+            String storageNodeId = getStorageNodeId(request.getSocketAddress());
+
+            if (storageNodeId == null) {
+                try {
+                    out.writeObject(Response.builder()
+                            .statusCode(StatusCode.INTERNAL_SERVER_ERROR)
+                            .build());
+                    out.flush();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                return;
+            }
+            try {
+
+                for (String nodeId : messagingQueues.keySet()) {
+                    if (!nodeId.equals(storageNodeId)) {
+                        // TODO
+                        /*
+                         * Add address of the storage from where to get Data.
+                         * For that modify the messaging queue to store the address of the storage node
+                         */
+                        messagingQueues.get(nodeId).put(
+                                ReplicateRequest.builder()
+                                        .requestType(RequestType.DELETE_DATA)
+                                        .address(storageNodes.get(storageNodeId).getNodeAddress())
+                                        .filePath(request.getPayload().toString())
+                                        .build());
+                    }
+                }
+                out.writeObject(Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .build());
+                out.flush();
+                System.out.println(messagingQueues);
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
+            }
         }
 
         private String getStorageNodeId(InetSocketAddress address) {
