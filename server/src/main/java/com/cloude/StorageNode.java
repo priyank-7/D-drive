@@ -324,7 +324,8 @@ public class StorageNode {
                 out.flush();
                 return;
             }
-            File file = new File(tempMetadata.getPath());
+            File file = new File(
+                    STORAGE_DIRECTORY + "/" + this.currentUser.getUsername() + "/" + tempMetadata.getName());
 
             if (file.exists()) {
                 int chunkSize = 4096;
@@ -412,7 +413,8 @@ public class StorageNode {
 
             // TODO: Add info into replication queue and update it with central server
 
-            File file = new File(tempMetaData.getPath());
+            File file = new File(
+                    STORAGE_DIRECTORY + "/" + this.currentUser.getUsername() + "/" + tempMetaData.getName());
             if (file.exists()) {
                 if (file.delete()) {
 
