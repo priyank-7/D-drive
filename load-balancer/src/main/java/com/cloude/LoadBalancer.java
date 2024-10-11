@@ -49,7 +49,7 @@ public class LoadBalancer {
      */
 
     public LoadBalancer(int port) {
-        this.logger.setLevel(Level.INFO);
+        this.logger.setLevel(Level.TRACE);
         try {
             serverSocket = new ServerSocket(port);
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load

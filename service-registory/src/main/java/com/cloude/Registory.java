@@ -62,7 +62,7 @@ public class Registory {
     private static final ConcurrentHashMap<String, BlockingQueue<ReplicateRequest>> messagingQueues = new ConcurrentHashMap<>();
 
     public Registory(int port) throws IOException {
-        this.logger.setLevel(org.apache.logging.log4j.Level.INFO);
+        this.logger.setLevel(org.apache.logging.log4j.Level.TRACE);
         this.serverSocket = new ServerSocket(port);
         int poolSize = Runtime.getRuntime().availableProcessors();
         this.threadPool = Executors.newFixedThreadPool(poolSize);
@@ -208,11 +208,10 @@ public class Registory {
                             handleUnregisterRequest(request);
                             break;
                         case PUSH_DATA:
-                            handlePushDateRequest(request);
+                            handleReplicateMetadateRequest(request);
                             break;
                         case DELETE_DATA:
-                            // TODO: Implement delete data request
-                            handleDeleteDateRequest(request);
+                            handleReplicateMetadateRequest(request);
                         case FORWARD_REQUEST:
                             handleForwardRequest(request);
                         case DISCONNECT:
@@ -362,9 +361,10 @@ public class Registory {
             out.flush();
         }
 
-        private void handlePushDateRequest(PeerRequest request) {
+        private void handleReplicateMetadateRequest(PeerRequest request) {
 
             // BUG: Handle Null response
+            // BUG: fix broken pipe exception while replicating delete_data request
             String storageNodeId = getStorageNodeId(request.getSocketAddress());
             if (storageNodeId == null) {
                 try {
@@ -381,13 +381,8 @@ public class Registory {
 
                 for (String nodeId : messagingQueues.keySet()) {
                     if (!nodeId.equals(storageNodeId)) {
-                        // TODO
-                        /*
-                         * Add address of the storage from where to get Data.
-                         * For that modify the messaging queue to store the address of the storage node
-                         */
                         messagingQueues.get(nodeId).put(ReplicateRequest.builder()
-                                .requestType(RequestType.PUSH_DATA)
+                                .requestType(request.getRequestType())
                                 .address(storageNodes.get(storageNodeId).getNodeAddress())
                                 .filePath(request.getPayload().toString())
                                 .build());
@@ -397,55 +392,11 @@ public class Registory {
                         .statusCode(StatusCode.SUCCESS)
                         .build());
                 out.flush();
-                System.out.println(messagingQueues);
+                logger.debug(messagingQueues.toString());
             } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             }
 
-        }
-
-        private void handleDeleteDateRequest(PeerRequest request) {
-            // TODO: Implement delete data request
-
-            // BUG: Handle Null response
-            String storageNodeId = getStorageNodeId(request.getSocketAddress());
-
-            if (storageNodeId == null) {
-                try {
-                    out.writeObject(Response.builder()
-                            .statusCode(StatusCode.INTERNAL_SERVER_ERROR)
-                            .build());
-                    out.flush();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-                return;
-            }
-            try {
-
-                for (String nodeId : messagingQueues.keySet()) {
-                    if (!nodeId.equals(storageNodeId)) {
-                        // TODO
-                        /*
-                         * Add address of the storage from where to get Data.
-                         * For that modify the messaging queue to store the address of the storage node
-                         */
-                        messagingQueues.get(nodeId).put(
-                                ReplicateRequest.builder()
-                                        .requestType(RequestType.DELETE_DATA)
-                                        .address(storageNodes.get(storageNodeId).getNodeAddress())
-                                        .filePath(request.getPayload().toString())
-                                        .build());
-                    }
-                }
-                out.writeObject(Response.builder()
-                        .statusCode(StatusCode.SUCCESS)
-                        .build());
-                out.flush();
-                System.out.println(messagingQueues);
-            } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
-            }
         }
 
         private String getStorageNodeId(InetSocketAddress address) {

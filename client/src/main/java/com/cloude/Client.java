@@ -33,7 +33,7 @@ public class Client {
     // TODO: Impliment TCP Blocking Queue for multiple requests
 
     public Client(String loadBalancerHost, int loadBalancerPort) {
-        this.logger.setLevel(Level.INFO);
+        this.logger.setLevel(Level.TRACE);
         this.loadBalancerHost = loadBalancerHost;
         this.loadBalancerPort = loadBalancerPort;
         scanner = new Scanner(System.in);

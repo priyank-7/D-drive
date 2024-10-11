@@ -53,7 +53,7 @@ public class StorageNode {
 
     public StorageNode(int port) {
 
-        this.logger.setLevel(org.apache.logging.log4j.Level.INFO);
+        this.logger.setLevel(org.apache.logging.log4j.Level.TRACE);
         this.threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         this.replicationQueue = new LinkedBlockingQueue<>();
         try {
@@ -289,9 +289,7 @@ public class StorageNode {
                     fos.flush();
                 }
 
-                // this.replicationQueue.put(tempMetadata.getPath());
-                // TODO: Spin up a new thread to send data to registory
-
+                // send data to registory for replication
                 replicationQueue.add(tempMetadata.getPath());
                 pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" + metadata.getName(),
                         RequestType.PUSH_DATA);
@@ -309,7 +307,6 @@ public class StorageNode {
                 out.writeObject(new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to upload file"));
                 return;
             }
-
         }
 
         // Handle Download File Request
@@ -395,7 +392,6 @@ public class StorageNode {
         private void handleDeleteFile(Request request) throws IOException {
             String fileName = (String) request.getPayload();
             Metadata tempMetaData = this.metadataDao.getMetadata(fileName, this.currentUser.get_id());
-            System.out.println("metadata: " + tempMetaData);
             if (tempMetaData == null) {
                 logger.warn("File not found");
                 Response response = new Response(StatusCode.NOT_FOUND, "File not found");
@@ -410,43 +406,41 @@ public class StorageNode {
                 out.flush();
                 return;
             }
-
-            // TODO: Add info into replication queue and update it with central server
-
             File file = new File(
                     STORAGE_DIRECTORY + "/" + this.currentUser.getUsername() + "/" + tempMetaData.getName());
             if (file.exists()) {
                 if (file.delete()) {
 
-                    // TODO
-                    /*
-                     * // this.replicationQueue.put(tempMetadata.getPath());
-                     * // TODO: Spin up a new thread to send data to registory
-                     * replicationQueue.add(this.currentUser.getUsername() + "/" +
-                     * tempMetaData.getName());
-                     * pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" +
-                     * tempMetaData.getName(),
-                     * RequestType.DELETE_DATA);
-                     * // TODO: based on the method response can impliment retry mechanism for
-                     * // replication
-                     */
+                    // send data to registory for replication
+                    replicationQueue.add(tempMetaData.getPath());
+                    pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" + tempMetaData.getName(),
+                            RequestType.DELETE_DATA);
+
+                    // TODO: based on the method response impliment retry mechanism for replication
 
                     Response response = new Response(StatusCode.SUCCESS, "File deleted successfully");
                     out.writeObject(response);
+                    out.flush();
+
                 } else {
                     Response response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to delete file");
                     out.writeObject(response);
+                    out.flush();
                 }
             } else {
+                logger.info("File not found");
                 Response response = new Response(StatusCode.NOT_FOUND, "File not found");
                 out.writeObject(response);
+                out.flush();
             }
             out.flush();
         }
 
         private void handleGetMetadata(Request request) throws IOException {
             String fileName = (String) request.getPayload(); // assuming file name is in payload
-            File file = new File(STORAGE_DIRECTORY + fileName);
+            File file = new File(STORAGE_DIRECTORY + "/" + this.currentUser.getUsername() + "/" + fileName);
+
+            // BUG: use metadataDao to get metadata insted of file
             if (file.exists()) {
                 String metadata = "File name: " + fileName + "\nSize: " + file.length() + " bytes";
                 Response response = new Response(StatusCode.SUCCESS, metadata);
@@ -455,6 +449,7 @@ public class StorageNode {
                 Response response = new Response(StatusCode.NOT_FOUND, "File not found");
                 out.writeObject(response);
             }
+            out.flush();
         }
 
         private boolean pushReplicationDataToRegistory(String path, RequestType requestType) {
