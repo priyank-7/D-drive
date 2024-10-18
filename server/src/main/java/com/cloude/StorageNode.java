@@ -5,6 +5,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -13,6 +14,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 
 import java.util.Arrays;
 import java.util.Date;
+import java.util.UUID;
 
 import com.cloude.db.MetadataDao;
 import com.cloude.db.User;
@@ -23,6 +25,7 @@ import com.cloude.headers.Response;
 import com.cloude.headers.StatusCode;
 import com.cloude.utilities.NodeType;
 import com.cloude.utilities.PeerRequest;
+import com.cloude.utilities.ReplicateRequest;
 
 // TODO Priority: Low: data security while transferring data between nodes and while stored 
 
@@ -49,6 +52,7 @@ public class StorageNode {
 
     private final ExecutorService threadPool;
     private MetadataDao metadataDao;
+    private static final ConcurrentHashMap<String, ReplicateRequest> pushReplicationData = new ConcurrentHashMap<>();
     private final BlockingQueue<String> replicationQueue;
 
     public StorageNode(int port) {
@@ -290,9 +294,13 @@ public class StorageNode {
                 }
 
                 // send data to registory for replication
-                replicationQueue.add(tempMetadata.getPath());
-                pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" + metadata.getName(),
-                        RequestType.PUSH_DATA);
+                ReplicateRequest pushRequest = ReplicateRequest.builder()
+                        .replicationId(UUID.randomUUID().toString())
+                        .filePath(this.currentUser.getUsername() + "/" + metadata.getName())
+                        .build();
+
+                pushReplicationData.put(pushRequest.getReplicationId(), pushRequest);
+                pushReplicationDataToRegistory(pushRequest, RequestType.PUSH_DATA);
                 // TODO: based on the method response can impliment retry mechanism for
                 // replication
 
@@ -412,9 +420,13 @@ public class StorageNode {
                 if (file.delete()) {
 
                     // send data to registory for replication
-                    replicationQueue.add(tempMetaData.getPath());
-                    pushReplicationDataToRegistory(this.currentUser.getUsername() + "/" + tempMetaData.getName(),
-                            RequestType.DELETE_DATA);
+                    ReplicateRequest pushRequest = ReplicateRequest.builder()
+                            .replicationId(UUID.randomUUID().toString())
+                            .filePath(this.currentUser.getUsername() + "/" + tempMetaData.getName())
+                            .build();
+
+                    pushReplicationData.put(pushRequest.getReplicationId(), pushRequest);
+                    pushReplicationDataToRegistory(pushRequest, RequestType.DELETE_DATA);
 
                     // TODO: based on the method response impliment retry mechanism for replication
 
@@ -452,7 +464,7 @@ public class StorageNode {
             out.flush();
         }
 
-        private boolean pushReplicationDataToRegistory(String path, RequestType requestType) {
+        private boolean pushReplicationDataToRegistory(ReplicateRequest pushReplication, RequestType requestType) {
             try (Socket registorySocket = new Socket(REGISTRY_HOST, REGISTRY_PORT);
                     ObjectOutputStream out = new ObjectOutputStream(registorySocket.getOutputStream());
                     ObjectInputStream in = new ObjectInputStream(registorySocket.getInputStream());) {
@@ -461,7 +473,7 @@ public class StorageNode {
                         .requestType(requestType)
                         .socketAddress(new InetSocketAddress("localhost", serverSocket.getLocalPort()))
                         .nodeType(NodeType.STORAGE_NODE)
-                        .payload(path)
+                        .payload(pushReplication)
                         .build());
                 out.flush();
 
