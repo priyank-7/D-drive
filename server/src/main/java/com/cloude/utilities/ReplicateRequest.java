@@ -1,5 +1,6 @@
 package com.cloude.utilities;
 
+import java.io.Serializable;
 import java.net.InetSocketAddress;
 
 import com.cloude.headers.RequestType;
@@ -17,10 +18,15 @@ import lombok.ToString;
 @AllArgsConstructor
 @NoArgsConstructor
 @ToString
-public class ReplicateRequest {
+public class ReplicateRequest implements Serializable {
 
+    private String replicationId;
     private String filePath;
     private InetSocketAddress address;
     private RequestType requestType;
 
+    public ReplicateRequest(String replicationId, String filePath) {
+        this.replicationId = replicationId;
+        this.filePath = filePath;
+    }
 }

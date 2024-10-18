@@ -44,6 +44,9 @@ public class Registory {
      * the registory server.
      */
 
+    // BUG: when storage node request for LB address,
+    // sometimes storage node get null / error
+
     // LoggerContext context = (LoggerContext) LogManager.getLogger();
     // private org.apache.logging.log4j.core.Logger logger =
     // context.getLogger(Registory.class.getName());
@@ -60,6 +63,8 @@ public class Registory {
     private static final ConcurrentHashMap<String, NodeInfo> storageNodes = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, NodeInfo> loadBalancers = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, BlockingQueue<ReplicateRequest>> messagingQueues = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Integer> replicationAckStatus = new ConcurrentHashMap<>();
+    private static final BlockingQueue<ReplicateRequest> ackList = new LinkedBlockingQueue<>();
 
     public Registory(int port) throws IOException {
         this.logger.setLevel(org.apache.logging.log4j.Level.TRACE);
@@ -72,6 +77,17 @@ public class Registory {
 
     public void start() {
         logger.info("Service Registry is running...");
+        this.threadPool.submit(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    sendAckToOwnerNode();
+                } catch (InterruptedException e) {
+                    logger.error("Error sending ack to the owner node in start() method");
+                    e.printStackTrace();
+                }
+            }
+        });
         while (true) {
             try {
                 Socket clientSocket = serverSocket.accept();
@@ -80,6 +96,7 @@ public class Registory {
                 e.printStackTrace();
             }
         }
+
     }
 
     public void stop() {
@@ -98,6 +115,42 @@ public class Registory {
         ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
         this.logger.info("Heartbeat interval: " + HEARTBEAT_INTERVAL + "ms");
         scheduler.scheduleAtFixedRate(this::sendHeartbeats, 0, HEARTBEAT_INTERVAL, TimeUnit.MILLISECONDS);
+    }
+
+    private void sendAckToOwnerNode() throws InterruptedException {
+        // TODO: Implement logic to send ack to the owner node
+        while (true) {
+            ReplicateRequest ackRequest = null;
+            try {
+                ackRequest = ackList.take();
+                logger.debug("Sending ack to the owner node" + ackRequest.getReplicationId());
+                Socket socket = new Socket(ackRequest.getAddress().getAddress(), ackRequest.getAddress().getPort());
+                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+                out.writeObject(Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .build());
+                out.flush();
+
+                Response ackResponse = (Response) in.readObject();
+                if (ackResponse.getStatusCode() == StatusCode.SUCCESS) {
+                    logger.info("Ack sent to the owner node");
+                } else {
+                    logger.error("Failed to send ack to the owner node");
+                    ackList.put(ackRequest);
+                }
+                out.close();
+                in.close();
+                socket.close();
+            } catch (IOException | InterruptedException | ClassNotFoundException e) {
+                // TODO: Handle exception
+                // If nececary add the request back to the queue
+                if (ackRequest != null) {
+                    ackList.put(ackRequest);
+                }
+                e.printStackTrace();
+            }
+        }
     }
 
     private void sendHeartbeats() {
@@ -212,6 +265,10 @@ public class Registory {
                             break;
                         case DELETE_DATA:
                             handleReplicateMetadateRequest(request);
+                            break;
+                        case PULL_DATA:
+                            handlePullMetadateRequest(request);
+                            break;
                         case FORWARD_REQUEST:
                             handleForwardRequest(request);
                         case DISCONNECT:
@@ -361,33 +418,76 @@ public class Registory {
             out.flush();
         }
 
-        private void handleReplicateMetadateRequest(PeerRequest request) {
-
-            // BUG: Handle Null response
-            // BUG: fix broken pipe exception while replicating delete_data request
-            String storageNodeId = getStorageNodeId(request.getSocketAddress());
-            if (storageNodeId == null) {
-                try {
+        private void handlePullMetadateRequest(PeerRequest request) {
+            ReplicateRequest replicateRequest = null;
+            String storageNodeId = null;
+            try {
+                storageNodeId = getStorageNodeId(request.getSocketAddress());
+                if (storageNodeId == null) {
+                    logger.fatal("HandlePullMetadata: Storage node not found");
                     out.writeObject(Response.builder()
                             .statusCode(StatusCode.INTERNAL_SERVER_ERROR)
                             .build());
                     out.flush();
-                } catch (IOException e) {
-                    e.printStackTrace();
+                    return;
                 }
-                return;
+                replicateRequest = messagingQueues.get(storageNodeId).take();
+                messagingQueues.get(storageNodeId).put(replicateRequest);
+                out.writeObject(Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .payload(replicateRequest)
+                        .build());
+                out.flush();
+
+                // TODO: Here When I get SUCCESS response which means node successfully copied
+                // file from storage node.
+                Response res = (Response) in.readObject();
+                if (res.getStatusCode() == StatusCode.SUCCESS) {
+                    messagingQueues.get(storageNodeId).poll();
+                    int rem = replicationAckStatus.get(replicateRequest.getReplicationId());
+                    rem--;
+                    if (rem == 0) {
+                        ackList.put(replicateRequest);
+                    }
+                }
+
+            } catch (IOException | InterruptedException | ClassNotFoundException e) {
+                if (storageNodeId != null && replicateRequest != null && messagingQueues.containsKey(storageNodeId)) {
+                    messagingQueues.get(storageNodeId).add(replicateRequest);
+                }
+                e.printStackTrace();
             }
+        }
+
+        private void handleReplicateMetadateRequest(PeerRequest request) {
+
+            // BUG: Handle Null response
+            // BUG: fix broken pipe exception while replicating delete_data request
+
             try {
+                String storageNodeId = getStorageNodeId(request.getSocketAddress());
+                if (storageNodeId == null) {
+                    logger.fatal("HandleReplicateMetadata: Storage node not found");
+                    out.writeObject(Response.builder()
+                            .statusCode(StatusCode.INTERNAL_SERVER_ERROR)
+                            .build());
+                    out.flush();
+                    return;
+                }
+
+                ReplicateRequest replicateRequest = (ReplicateRequest) request.getPayload();
+                replicateRequest.setAddress(request.getSocketAddress());
+                replicateRequest.setRequestType(request.getRequestType());
+                int nodeCount = 0;
 
                 for (String nodeId : messagingQueues.keySet()) {
                     if (!nodeId.equals(storageNodeId)) {
-                        messagingQueues.get(nodeId).put(ReplicateRequest.builder()
-                                .requestType(request.getRequestType())
-                                .address(storageNodes.get(storageNodeId).getNodeAddress())
-                                .filePath(request.getPayload().toString())
-                                .build());
+                        messagingQueues.get(nodeId).put(replicateRequest);
+                        nodeCount++;
                     }
                 }
+                replicationAckStatus.put(replicateRequest.getReplicationId(), nodeCount);
+                logger.debug("Replication Request added to the ack List");
                 out.writeObject(Response.builder()
                         .statusCode(StatusCode.SUCCESS)
                         .build());

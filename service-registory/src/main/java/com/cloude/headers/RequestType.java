@@ -11,5 +11,5 @@ public enum RequestType {
     PUSH_DATA,
     PULL_DATA,
     DELETE_DATA,
-    FORWARD_REQUEST
+    FORWARD_REQUEST,
 }
