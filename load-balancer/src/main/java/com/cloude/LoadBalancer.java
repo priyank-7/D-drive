@@ -144,6 +144,10 @@ public class LoadBalancer {
                         case AUTHENTICATE:
                             handleAuthenticate(request);
                             break;
+                        case SIGNUP:
+                            logger.debug("Received signup request");
+                            handleSignup(request);
+                            break;
                         case FORWARD_REQUEST:
                             handleForwardRequest(request);
                             break;
@@ -161,6 +165,38 @@ public class LoadBalancer {
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
+        }
+
+        private void handleSignup(Request request) {
+            try {
+                // Get user name and password from the request payload
+                logger.debug("Received signup request");
+                User user = ((User) request.getPayload());
+
+                // check any user with same user name exists or not
+                User existingUser = userDAO.getUserByUsername(user.getUsername());
+                Response response = null;
+                if (existingUser != null) {
+                    logger.debug("User with same username already exists");
+                    response = Response.builder()
+                            .statusCode(StatusCode.AUTHENTICATION_FAILED)
+                            .payload("User with same username already exists")
+                            .build();
+                } else {
+                    this.userDAO.insertUser(user);
+                    response = Response.builder()
+                            .statusCode(StatusCode.SUCCESS)
+                            .payload("User signed up successfully")
+                            .build();
+                    logger.info("User signed up successfully: " + user);
+                }
+
+                out.writeObject(response);
+                out.flush();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return;
         }
 
         private void handleAuthenticate(Request request) throws IOException {

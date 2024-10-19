@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LoggerContext;
 
 import com.cloude.Commands.UserCommands;
+import com.cloude.db.User;
 import com.cloude.headers.Metadata;
 import com.cloude.headers.Request;
 import com.cloude.headers.RequestType;
@@ -59,17 +60,33 @@ public class Client {
             switch (command) {
                 case AUTH:
                     if (argument.isEmpty()) {
-                        this.logger.error("Requires a username:password argument");
-                        System.out.println("Requires a username:password argument");
+                        logger.warn("Requires a username:password argument");
                     } else {
                         String[] credentials = argument.split(":");
                         if (credentials.length != 2) {
-                            System.out.println("Invalid credentials format. Use 'username:password'.");
+                            logger.warn("Invalid credentials format. Use 'username:password'.");
                         } else {
                             if (authenticate(credentials[0], credentials[1])) {
-                                System.out.println("Authenticated successfully.");
+                                logger.info("Authenticated successfully.");
                             } else {
-                                System.out.println("Authentication failed.");
+                                logger.error("Authentication failed.");
+                            }
+                        }
+                    }
+                    break;
+
+                case SIGNUP:
+                    if (argument.isEmpty()) {
+                        logger.warn("Requires a username:password argument");
+                    } else {
+                        String[] credentials = argument.split(":");
+                        if (credentials.length != 2) {
+                            logger.warn("Invalid credentials format. Use 'username:password'.");
+                        } else {
+                            if (signup(credentials[0], credentials[1])) {
+                                logger.info("Signed up successfully.");
+                            } else {
+                                logger.error("Signup failed.");
                             }
                         }
                     }
@@ -77,10 +94,10 @@ public class Client {
 
                 case PUT:
                     if (argument.isEmpty()) {
-                        System.out.println("Requires a file path.");
+                        logger.warn("Requires a file path.");
                     } else {
                         if (token == null) {
-                            System.out.println("Please authenticate first.");
+                            logger.warn("Please authenticate first.");
                             break;
                         }
                         if (this.nodeAddr == null) {
@@ -94,10 +111,10 @@ public class Client {
 
                 case GET:
                     if (argument.isEmpty()) {
-                        System.out.println("GET command requires a file name");
+                        logger.warn("GET command requires a file name");
                     } else {
                         if (token == null) {
-                            System.out.println("Please authenticate first.");
+                            logger.warn("Please authenticate first.");
                             break;
                         }
                         if (this.nodeAddr == null) {
@@ -111,10 +128,10 @@ public class Client {
 
                 case DELETE:
                     if (argument.isEmpty()) {
-                        System.out.println("DELETE command requires a file path.");
+                        logger.warn("DELETE command requires a file path.");
                     } else {
                         if (token == null) {
-                            System.out.println("Please authenticate first.");
+                            logger.warn("Please authenticate first.");
                             break;
                         }
                         if (this.nodeAddr == null) {
@@ -128,7 +145,7 @@ public class Client {
 
                 case LIST:
                     if (token == null) {
-                        System.out.println("Please authenticate first.");
+                        logger.warn("Please authenticate first.");
                         break;
                     }
 
@@ -141,11 +158,11 @@ public class Client {
                     break;
 
                 case EXIT:
-                    System.out.println("Exiting the client...");
+                    logger.info("Exiting the client...");
                     return;
 
                 default:
-                    System.out.println("Unknown command. Please try again.");
+                    logger.warn("Unknown command. Please try again.");
                     break;
             }
         }
@@ -177,6 +194,35 @@ public class Client {
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
             this.nodeAddr = null;
+        }
+    }
+
+    private boolean signup(String username, String password) {
+
+        try (Socket socket = new Socket(loadBalancerHost, loadBalancerPort);
+                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+
+            Request registerRequest = Request.builder()
+                    .requestType(RequestType.SIGNUP)
+                    .payload(User.builder()
+                            .username(username)
+                            .passwordHash(password)
+                            .role(null)
+                            .build())
+                    .build();
+            out.writeObject(registerRequest);
+            out.flush();
+            Response response = (Response) in.readObject();
+            if (response.getStatusCode().equals(StatusCode.SUCCESS)) {
+                logger.info("User registered successfully");
+                return true;
+            } else {
+                logger.error("Failed to register user: " + response.getPayload());
+                return false;
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            return false;
         }
     }
 

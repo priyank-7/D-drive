@@ -8,4 +8,5 @@ public enum RequestType {
     GET_METADATA, // Request to retrieve metadata (file/folder)
     DELETE_FILE, // Request to delete a file
     DISCONNECT, // Request to disconnect from the server
+    SIGNUP,
 }

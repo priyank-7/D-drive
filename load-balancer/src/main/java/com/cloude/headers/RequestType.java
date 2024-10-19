@@ -13,4 +13,5 @@ public enum RequestType {
     UNREGISTER,
     PING,
     UPDATE,
+    SIGNUP,
 }
