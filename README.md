@@ -57,22 +57,22 @@ The system architecture is designed with multiple components that interact to pr
 
 ### Overview:
 
-![System Architecture](System_Overview.png)
+![System Architecture](Diagrams\System_Overview.png)
 
-![System Architecture](System_Overview_2.png)
+![System Architecture](Diagrams\System_Overview_2.png)
 
 ### Service Registry Interaction:
 
-![System Architecture](diagram.png)
+![System Architecture](Diagrams\diagram.png)
 
 ### File Upload Process:
 
-![System Architecture](UploadFile.png)
+![System Architecture](Diagrams\UploadFile.png)
 
 ### File Download Process:
 
-![System Architecture](DownloadFile.png)
+![System Architecture](Diagrams\DownloadFile.png)
 
 ### File Deletion Process:
 
-![System Architecture](DeleteFIle.png)
+![System Architecture](Diagrams\DeleteFile.png)
