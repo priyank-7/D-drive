@@ -187,6 +187,7 @@ public class Client {
 
             if (response.getStatusCode() == StatusCode.SUCCESS) {
                 this.nodeAddr = (InetSocketAddress) response.getPayload();
+                logger.info("Requests will be forwarded to server: " + this.nodeAddr.toString());
             } else {
                 System.out.println("Failed to forward request: " + response.getPayload());
                 this.nodeAddr = null;
@@ -226,7 +227,7 @@ public class Client {
         }
     }
 
-    public boolean authenticate(String username, String password) {
+    private boolean authenticate(String username, String password) {
         try (Socket socket = new Socket(loadBalancerHost, loadBalancerPort);
                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {

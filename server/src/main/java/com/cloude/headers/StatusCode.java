@@ -10,4 +10,5 @@ public enum StatusCode {
     INTERNAL_SERVER_ERROR,
     EOF,
     PONG,
+    OK
 }

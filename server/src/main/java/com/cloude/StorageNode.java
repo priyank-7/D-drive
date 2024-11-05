@@ -9,6 +9,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.logging.log4j.core.LoggerContext;
 
@@ -43,23 +45,30 @@ public class StorageNode {
     org.apache.logging.log4j.core.Logger logger = LoggerContext.getContext().getLogger(StorageNode.class.getName());
 
     private ServerSocket serverSocket;
+    private String SELF_NODE_ID;
 
     private static final String REGISTRY_HOST = "localhost"; // Registry service host
     private static final int REGISTRY_PORT = 7070; // Registry service port
     private static final String STORAGE_DIRECTORY = System.getProperty("user.home") + "/ddrive-storage";
     private long lastPingTime;
     private static final long PING_TIMEOUT = 15000; // 15 seconds
+    private static final int LONG_POLLING_TIMEOUT = 60000; // 60 seconds
+
+    private static final long POLLING_INTERVAL = 2;
 
     private final ExecutorService threadPool;
+    private ScheduledExecutorService scheduler;
     private MetadataDao metadataDao;
     private static final ConcurrentHashMap<String, ReplicateRequest> pushReplicationData = new ConcurrentHashMap<>();
-    private final BlockingQueue<String> replicationQueue;
+    private final BlockingQueue<ReplicateRequest> pullReplicationQueue;
 
     public StorageNode(int port) {
 
         this.logger.setLevel(org.apache.logging.log4j.Level.TRACE);
         this.threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-        this.replicationQueue = new LinkedBlockingQueue<>();
+        this.pullReplicationQueue = new LinkedBlockingQueue<>();
+        this.scheduler = Executors.newScheduledThreadPool(4); // Single thread for scheduled tasks
+
         try {
             serverSocket = new ServerSocket(port);
             int poolSize = Runtime.getRuntime().availableProcessors();
@@ -70,6 +79,7 @@ public class StorageNode {
                 throw new Exception("Failed to register with the Registry");
             }
             logger.info("Successfully registered with the Registry");
+            startPullDataTask(); // Start the scheduled task
         } catch (IOException e) {
             e.printStackTrace();
         } catch (Exception e) {
@@ -87,6 +97,53 @@ public class StorageNode {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+    }
+
+    private void startPullDataTask() {
+        // Schedule the task to run every second
+        this.logger.info("Starting polling thread...");
+        this.logger.info("polling interval: " + POLLING_INTERVAL + "s");
+        scheduler.scheduleAtFixedRate(this::polling, 2, POLLING_INTERVAL, TimeUnit.SECONDS);
+    }
+
+    private void polling() {
+
+        try (Socket registorySocket = new Socket(REGISTRY_HOST, REGISTRY_PORT);
+                ObjectOutputStream out = new ObjectOutputStream(registorySocket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(registorySocket.getInputStream())) {
+
+            PeerRequest pullRequest = PeerRequest.builder()
+                    .requestType(RequestType.PULL_DATA)
+                    .payload(this.SELF_NODE_ID)
+                    .build();
+
+            out.writeObject(pullRequest);
+            out.flush();
+
+            Response response = (Response) in.readObject();
+            if (response.getStatusCode() == StatusCode.SUCCESS) {
+                ReplicateRequest pullReplication = (ReplicateRequest) response.getPayload();
+                pullReplicationQueue.add(pullReplication);
+                logger.debug("Current PullReplicationQueue stare: " + pullReplicationQueue.toString());
+
+                out.writeObject(Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .build());
+                out.flush();
+
+            } else {
+                logger.error("Failed to pull data from the Registory");
+            }
+
+            Thread.sleep(1000);
+            out.writeObject(PeerRequest.builder()
+                    .requestType(RequestType.DISCONNECT)
+                    .build());
+            out.flush();
+
+        } catch (IOException | ClassNotFoundException | InterruptedException e) {
+            System.out.println(e.getMessage());
         }
     }
 
@@ -112,6 +169,8 @@ public class StorageNode {
                     .build());
             out.flush();
             if (response.getStatusCode() == StatusCode.SUCCESS) {
+                this.SELF_NODE_ID = (String) response.getPayload();
+                logger.info("Node Id: " + this.SELF_NODE_ID);
                 return true;
             } else {
                 logger.error("Registry registration failed: " + response.getPayload());
@@ -148,9 +207,17 @@ public class StorageNode {
                     Request request = (Request) in.readObject();
                     String token = request.getToken();
 
+                    if (request.getRequestType() == RequestType.ASK) {
+                        handleAskRequest(request);
+                        return;
+                    }
                     if (request.getRequestType() == RequestType.PING) {
                         handlePingRequest();
                         clientSocket.close();
+                        return;
+                    }
+                    if (request.getRequestType() == RequestType.ACK_REPLICATION) {
+                        handleAckRepplication(request);
                         return;
                     }
 
@@ -184,9 +251,10 @@ public class StorageNode {
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             } finally {
-                logger.info("Closing connection");
                 try {
                     if (!clientSocket.isClosed()) {
+                        out.close();
+                        in.close();
                         clientSocket.close(); // Ensure the socket is closed in case of exceptions
                     }
                 } catch (IOException e) {
@@ -195,7 +263,11 @@ public class StorageNode {
             }
         }
 
-        private void handlePingRequest() {
+        private void handleAskRequest(Request request) {
+            logger.debug("Inside handle Ask request");
+        }
+
+        private void handlePingRequest() throws IOException {
             try {
                 // Send a simple PONG response back to the client
                 out.writeObject(new Response(StatusCode.PONG, "PONG"));
@@ -203,6 +275,19 @@ public class StorageNode {
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+
+        private void handleAckRepplication(Request request) throws IOException {
+            String replicationId = request.getPayload().toString();
+            try {
+                pushReplicationData.remove(replicationId);
+                logger.info("Replication ID removed from the list " + replicationId);
+            } catch (NullPointerException e) {
+                logger.error("Value with repliation ID not found" + replicationId);
+            }
+            out.writeObject(new Response(StatusCode.SUCCESS));
+            out.flush();
+            return;
         }
 
         private boolean validateTokenWithLoadBalancer(String token) {

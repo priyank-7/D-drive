@@ -8,5 +8,6 @@ public enum StatusCode {
     UNKNOWN_REQUEST,
     NOT_FOUND,
     INTERNAL_SERVER_ERROR,
-    PONG
+    PONG,
+    OK
 }

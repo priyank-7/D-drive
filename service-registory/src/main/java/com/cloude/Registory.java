@@ -81,6 +81,7 @@ public class Registory {
             @Override
             public void run() {
                 try {
+                    logger.info("sendAckToOwnerNode() thread started");
                     sendAckToOwnerNode();
                 } catch (InterruptedException e) {
                     logger.error("Error sending ack to the owner node in start() method");
@@ -127,8 +128,9 @@ public class Registory {
                 Socket socket = new Socket(ackRequest.getAddress().getAddress(), ackRequest.getAddress().getPort());
                 ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
-                out.writeObject(Response.builder()
-                        .statusCode(StatusCode.SUCCESS)
+                out.writeObject(Request.builder()
+                        .requestType(RequestType.ACK_REPLICATION)
+                        .payload(ackRequest.getReplicationId())
                         .build());
                 out.flush();
 
@@ -324,11 +326,6 @@ public class Registory {
                  * user this.clientsocket.getSocketAdderdd() insted of getSocketAddress()
                  */
 
-                // BUG:
-                /*
-                 * Get IP and Port of client socket Dynamic insted of getting from request
-                 * Make this update for update in data replication, load balancing and
-                 */
                 nodeInfo = findExistingNode(storageNodes,
                         new InetSocketAddress(this.clientSocket.getInetAddress(), address.getPort()));
                 if (nodeInfo != null) {
@@ -336,7 +333,7 @@ public class Registory {
                     nodeInfo.setLastResponse(new Date());
                     logger.info("Storage node re-registered and activated: " + nodeInfo.getNodeId());
                     response = new Response(StatusCode.SUCCESS,
-                            "Storage node re-registered and activated successfully");
+                            nodeInfo.getNodeId());
                 } else {
                     nodeInfo = NodeInfo.builder()
                             .nodeId(UUID.randomUUID().toString())
@@ -348,11 +345,14 @@ public class Registory {
                             .build();
                     response = new Response(StatusCode.SUCCESS, "Storage node registered successfully");
                 }
+                logger.debug("Storage Node Address - IP: " + nodeInfo.getNodeAddress().getAddress().toString()
+                        + "PORT: " + nodeInfo.getNodeAddress().getPort());
                 storageNodes.put(nodeInfo.getNodeId(), nodeInfo);
                 // Adding messaging queue for the storage node
                 messagingQueues.computeIfAbsent(nodeInfo.getNodeId(), v -> new LinkedBlockingQueue<>(100));
-                response = new Response(StatusCode.SUCCESS, "Storage node registered successfully");
-                // Get Messaging queue content from the storage node
+                response = new Response(StatusCode.SUCCESS, nodeInfo.getNodeId());
+
+                logger.debug("Storage node registered successfully: " + nodeInfo.getNodeAddress().getAddress());
                 sendActiveNodesToLoadBalancers();
 
             } else if (request.getNodeType() == NodeType.LOAD_BALANCER) {
@@ -376,6 +376,8 @@ public class Registory {
                             .build();
                     response = new Response(StatusCode.SUCCESS, "Load Balancer registered successfully");
                 }
+                logger.debug("Load Balancer Address - IP: " + nodeInfo.getNodeAddress().getAddress().toString()
+                        + "PORT: " + nodeInfo.getNodeAddress().getPort());
                 loadBalancers.put(nodeInfo.getNodeId(), nodeInfo);
                 List<InetSocketAddress> activeStorageNodes = new ArrayList<>();
                 for (NodeInfo storageNode : storageNodes.values()) {
@@ -419,41 +421,52 @@ public class Registory {
         }
 
         private void handlePullMetadateRequest(PeerRequest request) {
+
+            logger.debug("Receved Pull Request: " + request.toString().trim());
+            // 1st request from storage node reciveed
             ReplicateRequest replicateRequest = null;
-            String storageNodeId = null;
+            String currentNodeId = null;
             try {
-                storageNodeId = getStorageNodeId(request.getSocketAddress());
-                if (storageNodeId == null) {
-                    logger.fatal("HandlePullMetadata: Storage node not found");
+                currentNodeId = storageNodes.get(request.getPayload().toString().trim()).getNodeId();
+                if (currentNodeId == null) {
+                    logger.fatal("HandlePullMetadata: Storage node not found, NodeId: " + request.getPayload());
+                    // Sending 1se Response to the storage node
                     out.writeObject(Response.builder()
-                            .statusCode(StatusCode.INTERNAL_SERVER_ERROR)
+                            .statusCode(StatusCode.NOT_FOUND)
                             .build());
                     out.flush();
                     return;
                 }
-                replicateRequest = messagingQueues.get(storageNodeId).take();
-                messagingQueues.get(storageNodeId).put(replicateRequest);
+                replicateRequest = messagingQueues.get(currentNodeId).peek();
+                if (replicateRequest == null) {
+                    // Sending 1nd Response to the storage node
+                    out.writeObject(Response.builder()
+                            .statusCode(StatusCode.OK)
+                            .build());
+                    out.flush();
+                    return;
+                }
+
+                // Sending 1st Response to the storage node
                 out.writeObject(Response.builder()
                         .statusCode(StatusCode.SUCCESS)
                         .payload(replicateRequest)
                         .build());
                 out.flush();
-
-                // TODO: Here When I get SUCCESS response which means node successfully copied
-                // file from storage node.
+                // Receiving 2nd Response from the storage node
                 Response res = (Response) in.readObject();
                 if (res.getStatusCode() == StatusCode.SUCCESS) {
-                    messagingQueues.get(storageNodeId).poll();
+                    messagingQueues.get(currentNodeId).poll();
                     int rem = replicationAckStatus.get(replicateRequest.getReplicationId());
                     rem--;
                     if (rem == 0) {
                         ackList.put(replicateRequest);
                     }
+                    return;
                 }
-
-            } catch (IOException | InterruptedException | ClassNotFoundException e) {
-                if (storageNodeId != null && replicateRequest != null && messagingQueues.containsKey(storageNodeId)) {
-                    messagingQueues.get(storageNodeId).add(replicateRequest);
+            } catch (IOException | ClassNotFoundException | InterruptedException e) {
+                if (currentNodeId != null && replicateRequest != null && messagingQueues.containsKey(currentNodeId)) {
+                    messagingQueues.get(currentNodeId).add(replicateRequest);
                 }
                 e.printStackTrace();
             }
@@ -493,6 +506,8 @@ public class Registory {
                         .build());
                 out.flush();
                 logger.debug(messagingQueues.toString());
+                // askStorageNodeToCopyReplicateRequest();
+
             } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             }
@@ -500,12 +515,52 @@ public class Registory {
         }
 
         private String getStorageNodeId(InetSocketAddress address) {
+            logger.debug("Inside getStorageNodeId method");
             for (NodeInfo node : storageNodes.values()) {
-                if (node.getNodeAddress().equals(address)) {
+                if (node.getNodeAddress().getAddress().equals(address.getAddress())
+                        && node.getNodeAddress().getPort() == address.getPort()) {
+                    logger.debug("Storage Node ID found for the address: " + address.getAddress());
                     return node.getNodeId();
                 }
             }
+            logger.debug("Storage Node ID not found for the address: " + address.getAddress());
             return null;
         }
+
+        // private void askStorageNodeToCopyReplicateRequest() {
+        // threadPool.submit(new Runnable() {
+        // @Override
+        // public void run() {
+        // for (String nodeId : storageNodes.keySet()) {
+        // logger.debug("Inside a run method of askStoragenode......");
+        // if (messagingQueues.get(nodeId).size() > 0) {
+        // sendAskRepolicateRequest(storageNodes.get(nodeId));
+        // }
+        // }
+        // }
+        // });
+        // return;
+        // }
+
+        // private void sendAskRepolicateRequest(NodeInfo node) {
+        // try (
+        // Socket socket = new Socket(node.getNodeAddress().getAddress(),
+        // node.getNodeAddress().getPort());
+        // ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+        // ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+
+        // out.writeObject(Request.builder()
+        // .requestType(RequestType.ASK)
+        // .build());
+        // logger.debug("ASK request sent");
+        // out.flush();
+        // out.close();
+        // in.close();
+        // socket.close();
+        // } catch (IOException e) {
+        // logger.error("Error while sending ask request");
+        // }
+        // return;
+        // }
     }
 }

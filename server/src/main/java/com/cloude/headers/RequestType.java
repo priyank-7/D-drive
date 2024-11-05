@@ -14,5 +14,7 @@ public enum RequestType {
     PING,
     PUSH_DATA,
     PULL_DATA,
-    DELETE_DATA
+    DELETE_DATA,
+    ACK_REPLICATION,
+    ASK
 }

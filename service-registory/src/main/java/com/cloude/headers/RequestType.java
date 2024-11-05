@@ -12,4 +12,6 @@ public enum RequestType {
     PULL_DATA,
     DELETE_DATA,
     FORWARD_REQUEST,
+    ACK_REPLICATION,
+    ASK
 }
