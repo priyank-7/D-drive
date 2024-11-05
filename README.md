@@ -61,7 +61,7 @@ The system architecture is designed with multiple components that interact to pr
 
 ![System Architecture](Diagrams/System_Overview_2.png)
 
-### Service Registry Interaction:
+<!-- ### Service Registry Interaction:
 
 ![System Architecture](Diagrams/diagram.png)
 
@@ -75,4 +75,4 @@ The system architecture is designed with multiple components that interact to pr
 
 ### File Deletion Process:
 
-![System Architecture](Diagrams/DeleteFile.png)
+![System Architecture](Diagrams/DeleteFIle.png) -->
