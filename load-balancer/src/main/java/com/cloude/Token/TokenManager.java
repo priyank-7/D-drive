@@ -33,6 +33,9 @@ public class TokenManager {
                     .getSubject();
             return tokenStore.containsKey(token) && tokenStore.get(token).equals(username);
         } catch (Exception e) {
+            if (tokenStore.containsKey(token)) {
+                tokenStore.remove(token);
+            }
             return false;
         }
     }
