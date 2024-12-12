@@ -132,6 +132,14 @@ public class LoadBalancer {
                     Request request = (Request) in.readObject();
 
                     switch (request.getRequestType()) {
+                        case GET_USER_DETAILS:
+                            String username = (String) request.getPayload();
+                            User user = userDAO.getUserByUsername(username);
+                            out.writeObject(Response.builder()
+                                    .statusCode(StatusCode.SUCCESS)
+                                    .payload(user)
+                                    .build());
+                            break;
                         case PING:
                             handlePingRequest();
                             clientSocket.close();

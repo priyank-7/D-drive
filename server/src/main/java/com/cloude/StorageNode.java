@@ -89,12 +89,19 @@ public class StorageNode {
 
     public void start() {
         logger.info("Listening on port " + serverSocket.getLocalPort());
+        this.threadPool.submit(new Runnable() {
+            @Override
+            public void run() {
+                makeRelicationRequest();
+            }
+        });
         while (true) {
             try {
                 Socket clientSocket = serverSocket.accept();
                 threadPool.submit(new ClientHandler(clientSocket, this.metadataDao));
                 logger.info("Accepted connection from " + clientSocket.getPort());
             } catch (IOException e) {
+                this.threadPool.shutdown();
                 e.printStackTrace();
             }
         }
@@ -144,6 +151,203 @@ public class StorageNode {
 
         } catch (IOException | ClassNotFoundException | InterruptedException e) {
             System.out.println(e.getMessage());
+        }
+    }
+
+    // private void startDataReplication() {
+    // new Runnable() {
+    // @Override
+    // public void run() {
+    // makeRelicationRequest();
+    // }
+    // };
+    // }
+
+    private void makeRelicationRequest() { // Copy actual data
+        try {
+            while (true) {
+                ReplicateRequest currentRequest = this.pullReplicationQueue.take();
+
+                if (currentRequest == null) {
+                    logger.error("Current Request is NULL");
+                    continue;
+                }
+
+                String filePath = STORAGE_DIRECTORY + "/" + currentRequest.getFilePath();
+                String[] pathParts = currentRequest.getFilePath().split("/");
+                User user = getUserDetailsFromLB(pathParts[0]);
+
+                if (currentRequest.getRequestType().equals(RequestType.DELETE_DATA)) {
+
+                    if (this.metadataDao.deleteMetadata(pathParts[1], user.get_id())) {
+                        logger.info("Metadata deleted successfully");
+                        // TODO send ack
+                    } else {
+                        logger.error("Failed to delete metadata");
+                        // TODO send n_ack
+                    }
+                    File file = new File(filePath);
+                    if (file.exists()) {
+                        if (file.delete()) {
+                            logger.info("File deleted successfully");
+                        } else {
+                            logger.error("Failed to delete file");
+                        }
+                    } else {
+                        logger.error("File not found");
+                    }
+                } else if (currentRequest.getRequestType().equals(RequestType.PUSH_DATA)) {
+                    try (Socket registorySocket = new Socket(REGISTRY_HOST, REGISTRY_PORT);
+                            ObjectOutputStream out = new ObjectOutputStream(registorySocket.getOutputStream());
+                            ObjectInputStream in = new ObjectInputStream(registorySocket.getInputStream())) {
+
+                        out.writeObject(Request.builder()
+                                .requestType(RequestType.COPY_DATA)
+                                .payload(currentRequest.getFilePath())
+                                .build());
+                        out.flush();
+                        Response response = (Response) in.readObject();
+
+                        if (response.getStatusCode() == StatusCode.NOT_FOUND) {
+                            logger.error("File not found");
+                            out.writeObject(new Request(RequestType.DISCONNECT));
+                            continue;
+
+                        } else if (response.getStatusCode() == StatusCode.SUCCESS) {
+                            Metadata metadata = (Metadata) response.getPayload();
+
+                            logger.info("metada recieved");
+                            String directoryPath = STORAGE_DIRECTORY + "/" + pathParts[0];
+                            String Current_FilePath = directoryPath + "/" + metadata.getName();
+                            Metadata tempMetadata = this.metadataDao.getMetadata(metadata.getName(), user.get_id());
+                            if (tempMetadata == null) {
+                                if (this.metadataDao.saveMetadata(metadata)) {
+                                    logger.info("Metadata saved ");
+                                    out.writeObject(new Response(StatusCode.SUCCESS, "File Created Successfully"));
+                                    out.flush();
+                                } else {
+                                    logger.error("Error to save metadata");
+                                    out.writeObject(
+                                            new Response(StatusCode.INTERNAL_SERVER_ERROR, "Error to save metadata"));
+                                    out.flush();
+                                    out.writeObject(new Request(RequestType.DISCONNECT));
+                                    // TODO: put current replication request into queue again
+                                    continue;
+                                }
+                            } else {
+                                this.metadataDao.updateMetadata(tempMetadata.getName(), user.get_id(),
+                                        metadata);
+                                logger.info("File details ");
+                                out.writeObject(new Response(StatusCode.SUCCESS, "File already exists"));
+                            }
+
+                            response = (Response) in.readObject();
+                            if (!response.equals(StatusCode.SUCCESS)) {
+                                logger.error("Actual File not found on peer");
+                                out.writeObject(new Request(RequestType.DISCONNECT));
+                                // TODO: put current replication request into queue again
+                                continue;
+                            }
+
+                            File file = new File(Current_FilePath);
+                            File directory = new File(STORAGE_DIRECTORY + "/" + pathParts[0]);
+                            if (!directory.exists() && !directory.mkdirs()) {
+                                logger.error("Failed to create directory with username");
+                            }
+                            try (FileOutputStream fos = new FileOutputStream(file)) {
+                                while (true) {
+                                    Response chunkResponse = (Response) in.readObject();
+                                    if (StatusCode.EOF.equals(chunkResponse.getStatusCode())) {
+                                        fos.close();
+                                        break;
+                                    }
+                                    byte[] chunk = chunkResponse.getData();
+                                    int chunkSize = chunkResponse.getDataSize();
+                                    fos.write(chunk, 0, chunkSize);
+                                    fos.flush();
+                                }
+                            } catch (IOException | ClassNotFoundException e) {
+                                e.printStackTrace();
+                                if (file.exists()) {
+                                    file.delete();
+                                }
+                            }
+                        }
+                        logger.info("File Success fully replicated from Peer");
+                        out.writeObject(new Request(RequestType.DISCONNECT));
+                    } catch (IOException | ClassNotFoundException e) {
+                        System.out.println(e.getMessage());
+                    }
+
+                    // TODO: Send ACK in both the cases
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Error in makeRelicationRequest: " + e.getMessage());
+        }
+    }
+
+    private User getUserDetailsFromLB(String userName) {
+        InetSocketAddress lbInetSocketAddress = getLoadBalancerAddress();
+        if (lbInetSocketAddress == null) {
+            logger.error("LB address receved NULL, returning false");
+            return null;
+        }
+        try (Socket loadBalancerSocket = new Socket(lbInetSocketAddress.getAddress(),
+                lbInetSocketAddress.getPort());
+                ObjectOutputStream loadBalancerOut = new ObjectOutputStream(loadBalancerSocket.getOutputStream());
+                ObjectInputStream loadBalancerIn = new ObjectInputStream(loadBalancerSocket.getInputStream())) {
+
+            // Send the token to the load balancer for validation
+            Request validationRequest = Request.builder()
+                    .requestType(RequestType.GET_USER_DETAILS)
+                    .payload(userName)
+                    .build();
+
+            loadBalancerOut.writeObject(validationRequest);
+            loadBalancerOut.flush();
+            Response response = (Response) loadBalancerIn.readObject();
+            loadBalancerOut.writeObject(new Request(RequestType.DISCONNECT));
+            if (response.getStatusCode() == StatusCode.SUCCESS) {
+                return (User) response.getPayload();
+            } else {
+                return null;
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private InetSocketAddress getLoadBalancerAddress() {
+        try (Socket socket = new Socket(REGISTRY_HOST, REGISTRY_PORT);
+                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
+
+            // Send a request to forward to the correct storage node
+            PeerRequest forwardRequest = PeerRequest.builder()
+                    .requestType(RequestType.FORWARD_REQUEST)
+                    .build();
+
+            out.writeObject(forwardRequest);
+            out.flush();
+            logger.info("Request sent to Registory");
+
+            Response response = (Response) in.readObject();
+            out.writeObject(new Request(RequestType.DISCONNECT));
+            out.flush();
+
+            logger.info("Response received from Registory " + response.getStatusCode());
+            if (response.getStatusCode() == StatusCode.SUCCESS) {
+                logger.info("LB Address receved from Registory");
+                return (InetSocketAddress) response.getPayload();
+            } else {
+                logger.warn("Failed to get load balancer address");
+                return null;
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            logger.error("Failed to get load balancer address");
+            return null;
         }
     }
 
@@ -218,6 +422,10 @@ public class StorageNode {
                     }
                     if (request.getRequestType() == RequestType.ACK_REPLICATION) {
                         handleAckRepplication(request);
+                        return;
+                    }
+                    if (request.getRequestType() == RequestType.COPY_DATA) {
+                        handleCopyData(request);
                         return;
                     }
 
@@ -531,6 +739,75 @@ public class StorageNode {
                 out.flush();
             }
             out.flush();
+        }
+
+        private void handleCopyData(Request request) {
+
+            try {
+
+                String fileName = (String) request.getPayload();
+                String filePath = STORAGE_DIRECTORY + "/" + request.getPayload().toString();
+                String[] pathParts = request.getPayload().toString().split("/");
+                User user = getUserDetailsFromLB(pathParts[0]);
+                Metadata tempMetadata = this.metadataDao.getMetadata(pathParts[1], user.get_id());
+                if (tempMetadata == null) {
+                    logger.error("Metadata not found");
+                    out.writeObject(new Response(StatusCode.NOT_FOUND, "Metadata not found"));
+                    return;
+                }
+                out.writeObject(Response.builder()
+                        .statusCode(StatusCode.SUCCESS)
+                        .payload(tempMetadata)
+                        .build());
+                out.flush();
+
+                Response response = (Response) in.readObject();
+                if (!response.getStatusCode().equals(StatusCode.SUCCESS)) {
+                    logger.info("Not a Success Respoonse from Peer Server on data copy");
+                    return;
+                }
+
+                File file = new File(filePath);
+                if (!file.exists()) {
+                    out.writeObject(new Response(StatusCode.NOT_FOUND));
+                    out.flush();
+                    return;
+                }
+                if (file.exists()) {
+                    int chunkSize = 4096;
+                    byte[] buffer = new byte[chunkSize];
+
+                    // Now send the file data in chunks
+                    try (FileInputStream fis = new FileInputStream(file)) {
+                        int bytesRead;
+                        while ((bytesRead = fis.read(buffer)) != -1) {
+                            response = Response.builder()
+                                    .statusCode(StatusCode.SUCCESS)
+                                    .payload(fileName)
+                                    .data(Arrays.copyOf(buffer, bytesRead)) // Send only the valid bytes
+                                    .dataSize(bytesRead)
+                                    .build();
+                            out.writeObject(response);
+                            out.flush();
+                        }
+                        // Signal the end of the file transmission
+                        response = Response.builder()
+                                .statusCode(StatusCode.EOF)
+                                .build();
+                        out.writeObject(response);
+                        out.flush();
+
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        response = new Response(StatusCode.INTERNAL_SERVER_ERROR, "Failed to read file");
+                        out.writeObject(response);
+                        out.flush();
+                    }
+                }
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+            }
+            return;
         }
 
         private void handleGetMetadata(Request request) throws IOException {

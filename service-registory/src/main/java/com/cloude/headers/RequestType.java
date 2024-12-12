@@ -13,5 +13,6 @@ public enum RequestType {
     DELETE_DATA,
     FORWARD_REQUEST,
     ACK_REPLICATION,
-    ASK
+    ASK,
+    GET_USER_DETAILS
 }

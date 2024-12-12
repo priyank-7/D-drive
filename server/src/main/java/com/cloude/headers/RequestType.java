@@ -16,5 +16,7 @@ public enum RequestType {
     PULL_DATA,
     DELETE_DATA,
     ACK_REPLICATION,
-    ASK
+    ASK,
+    GET_USER_DETAILS,
+    COPY_DATA
 }

@@ -14,4 +14,5 @@ public enum RequestType {
     PING,
     UPDATE,
     SIGNUP,
+    GET_USER_DETAILS
 }
