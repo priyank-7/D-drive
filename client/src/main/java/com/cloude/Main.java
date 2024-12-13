@@ -5,7 +5,7 @@ public class Main {
         // Logger logger = LoggerFactory.getLogger(Main.class);
         // logger.info("Hello World");
 
-        Client client = new Client("localhost", 8080);
+        Client client = new Client("10.1.48.180", 8080);
         client.HandelRequest();
     }
 }

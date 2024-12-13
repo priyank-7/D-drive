@@ -55,7 +55,7 @@ public class LoadBalancer {
             int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load
             this.threadPool = Executors.newFixedThreadPool(poolSize * 4);
             logger.info("Thread pool initilized with size: " + poolSize * 4);
-            userDAO = new UserDAO(MongoDBConnection.getDatabase("ddrive"));
+            userDAO = new UserDAO(MongoDBConnection.getDatabase("D-drive"));
             tokenManager = new TokenManager();
             // Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
             registerWithRegistory();
@@ -65,7 +65,7 @@ public class LoadBalancer {
     }
 
     private void registerWithRegistory() {
-        try (Socket registrySocket = new Socket("localhost", 7070)) {
+        try (Socket registrySocket = new Socket("10.1.60.237", 7071)) {
             ObjectOutputStream out = new ObjectOutputStream(registrySocket.getOutputStream());
             ObjectInputStream in = new ObjectInputStream(registrySocket.getInputStream());
 
@@ -288,7 +288,7 @@ public class LoadBalancer {
         private void handlePingRequest() {
             try {
                 // Send a simple PONG response back to the client
-                logger.info("Received PING request from registry");
+                // logger.info("Received PING request from registry");
                 out.writeObject(new Response(StatusCode.PONG, "PONG"));
                 out.flush();
             } catch (IOException e) {

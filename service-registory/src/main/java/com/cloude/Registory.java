@@ -120,39 +120,41 @@ public class Registory {
 
     private void sendAckToOwnerNode() throws InterruptedException {
         // TODO: Implement logic to send ack to the owner node
-        while (true) {
-            ReplicateRequest ackRequest = null;
-            try {
-                ackRequest = ackList.take();
-                logger.debug("Sending ack to the owner node" + ackRequest.getReplicationId());
-                Socket socket = new Socket(ackRequest.getAddress().getAddress(), ackRequest.getAddress().getPort());
-                ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
-                ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
-                out.writeObject(Request.builder()
-                        .requestType(RequestType.ACK_REPLICATION)
-                        .payload(ackRequest.getReplicationId())
-                        .build());
-                out.flush();
+        // while (true) {
+        // ReplicateRequest ackRequest = null;
+        // try {
+        // ackRequest = ackList.take();
+        // logger.debug("Sending ack to the owner node" +
+        // ackRequest.getReplicationId());
+        // Socket socket = new Socket(ackRequest.getAddress().getAddress(),
+        // ackRequest.getAddress().getPort());
+        // ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+        // ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
+        // out.writeObject(Request.builder()
+        // .requestType(RequestType.ACK_REPLICATION)
+        // .payload(ackRequest.getReplicationId())
+        // .build());
+        // out.flush();
 
-                Response ackResponse = (Response) in.readObject();
-                if (ackResponse.getStatusCode() == StatusCode.SUCCESS) {
-                    logger.info("Ack sent to the owner node");
-                } else {
-                    logger.error("Failed to send ack to the owner node");
-                    ackList.put(ackRequest);
-                }
-                out.close();
-                in.close();
-                socket.close();
-            } catch (IOException | InterruptedException | ClassNotFoundException e) {
-                // TODO: Handle exception
-                // If nececary add the request back to the queue
-                if (ackRequest != null) {
-                    ackList.put(ackRequest);
-                }
-                e.printStackTrace();
-            }
-        }
+        // Response ackResponse = (Response) in.readObject();
+        // if (ackResponse.getStatusCode() == StatusCode.SUCCESS) {
+        // logger.info("Ack sent to the owner node");
+        // } else {
+        // logger.error("Failed to send ack to the owner node");
+        // ackList.put(ackRequest);
+        // }
+        // out.close();
+        // in.close();
+        // socket.close();
+        // } catch (IOException | InterruptedException | ClassNotFoundException e) {
+        // // TODO: Handle exception
+        // // If nececary add the request back to the queue
+        // if (ackRequest != null) {
+        // ackList.put(ackRequest);
+        // }
+        // e.printStackTrace();
+        // }
+        // }
     }
 
     private void sendHeartbeats() {
@@ -168,7 +170,7 @@ public class Registory {
             Request request = new Request(RequestType.PING);
             out.writeObject(request);
             out.flush();
-            this.logger.info("Sent PING to node " + node.getNodeId());
+            // this.logger.info("Sent PING to node " + node.getNodeId());
 
             // Wait for a response within the timeout
             socket.setSoTimeout(HEARTBEAT_TIMEOUT);
@@ -422,7 +424,7 @@ public class Registory {
 
         private void handlePullMetadateRequest(PeerRequest request) {
 
-            logger.debug("Receved Pull Request: " + request.toString().trim());
+            // logger.debug("Receved Pull Request: " + request.toString().trim());
             // 1st request from storage node reciveed
             ReplicateRequest replicateRequest = null;
             String currentNodeId = null;
@@ -478,7 +480,8 @@ public class Registory {
             // BUG: fix broken pipe exception while replicating delete_data request
 
             try {
-                String storageNodeId = getStorageNodeId(request.getSocketAddress());
+                ReplicateRequest replicateRequest = (ReplicateRequest) request.getPayload();
+                String storageNodeId = getStorageNodeIdFromNodeId(replicateRequest.getNodeId());
                 if (storageNodeId == null) {
                     logger.fatal("HandleReplicateMetadata: Storage node not found");
                     out.writeObject(Response.builder()
@@ -487,9 +490,8 @@ public class Registory {
                     out.flush();
                     return;
                 }
-
-                ReplicateRequest replicateRequest = (ReplicateRequest) request.getPayload();
-                replicateRequest.setAddress(request.getSocketAddress());
+                // TODO:
+                replicateRequest.setAddress(storageNodes.get(storageNodeId).getNodeAddress());
                 replicateRequest.setRequestType(request.getRequestType());
                 int nodeCount = 0;
 
@@ -524,6 +526,15 @@ public class Registory {
                 }
             }
             logger.debug("Storage Node ID not found for the address: " + address.getAddress());
+            return null;
+        }
+
+        private String getStorageNodeIdFromNodeId(String nodeId) {
+            for (String id : storageNodes.keySet()) {
+                if (id.equals(nodeId)) {
+                    return id;
+                }
+            }
             return null;
         }
 

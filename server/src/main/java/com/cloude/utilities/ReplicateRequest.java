@@ -24,9 +24,16 @@ public class ReplicateRequest implements Serializable {
     private String filePath;
     private InetSocketAddress address;
     private RequestType requestType;
+    private String NodeId;
 
     public ReplicateRequest(String replicationId, String filePath) {
         this.replicationId = replicationId;
         this.filePath = filePath;
+    }
+
+    public ReplicateRequest(String replicationId, String filePath, String nodeId) {
+        this.replicationId = replicationId;
+        this.filePath = filePath;
+        this.NodeId = nodeId;
     }
 }
