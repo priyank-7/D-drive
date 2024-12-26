@@ -1,78 +1,122 @@
-# 🌩️ Cloud Storage Project
+# D-Drive: Distributed Cloud Storage System
 
-## 📚 Overview
+## Overview
 
-Welcome to the Cloud Storage Project! This system offering a robust solution for storing and managing files across multiple nodes.
+D-Drive is a distributed storage system designed to provide scalable, secure, and efficient file storage across multiple nodes. It ensures high availability, fault tolerance, and seamless user experience for uploading, downloading, and managing files.
 
-## ✨ Features
+## Features
 
-- **File Storage**: Files are stored across multiple storage nodes for redundancy, scalability, and fault tolerance.
-- **Load Balancing**: Efficiently distributes client requests across available storage nodes to ensure optimal performance.
-- **User Authentication**: Secure authentication mechanism before performing any file operations.
-- **File Operations**: Supports `UPLOAD`, `DOWNLOAD`, `LIST`, and `DELETE` commands.
-- **Service Registry**: Manages and tracks the status of all registered nodes (both storage nodes and load balancers).
-- **Heartbeat Monitoring**: Continuously checks the health of storage nodes to ensure system reliability.
+- **File Operations**: Supports file upload, download, and deletion.
+- **Data Replication**: Ensures redundancy by replicating files across storage nodes.
+- **Load Balancing**: Distributes user requests across storage nodes using a round-robin algorithm.
+- **Authentication**: Provides token-based authentication for secure access.
+- **Service Registry**: Tracks and monitors active storage nodes and load balancers.
+- **Fault Tolerance**: Uses heartbeats to detect node failures and dynamically redistributes responsibilities.
 
-## 🛠️ Technologies Used
+## File Storage and Download Details
 
-- **Java**: Core programming language for the project.
-- **TCP/IP**: Network protocol for communication between nodes.
-- **MongoDB**: Used for storing metadata and managing user and file information.
-- **Maven**: Build automation tool for Java projects.
+### File Upload
 
-## 🚀 Getting Started
+- **Storage Location**:
+  - Files uploaded by users are stored in the home directory of the logged-in user under the `/ddrive-storage` directory.
+  - Once uploaded, the file is automatically replicated to all other active storage nodes in the system to ensure redundancy and fault tolerance.
 
-### Prerequisites
+### File Download
 
-- Java 17 or higher
-- MongoDB
+- **Download Location on Client Device**:
+  - Files downloaded by the client are saved in the **`Downloads`** folder of the client device.
 
-### Installation
+## Architecture
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/priyank-7/D-drive.git
-   ```
-   ```bash
-   cd D-drive
-   ```
-   ```bash
-   mvn clean install
-   ```
+The system comprises the following components:
 
-## 📘 Usage
+1. **Client**: Issues commands like upload, download, and delete to interact with the system.
+2. **Load Balancer**: Distributes client requests to storage nodes and validates authentication tokens.
+3. **Storage Nodes**: Store files and handle replication, ensuring data availability.
+4. **Service Registry**: Tracks live nodes, manages metadata, and facilitates communication between components.
+5. **Database**: Stores metadata, user information, and access control details.
+
+![Architecture Diagram](/Diagrams/System_Overview.png)
+
+## File Storage Mechanism
+
+Files are stored on all ther storage nodes and replicated across all storage nodes for redundancy. Metadata associated with files is managed by the database.
+
+## Platforms and Technologies
+
+### Software
+
+- **Programming Language**: Java
+- **Database**: MongoDB
+- **Tools**: Maven
+- **Logging**: Log4j
+- **Libraries**: JWT for authentication, MongoDB Driver
+
+## Installation
+
+#### 1. Clone the repository:
+
+```bash
+git clone https://github.com/username/d-drive.git
+cd d-drive
+```
+
+#### 2. Build and Run Modules
+
+##### 1. Service Registry
+
+```bash
+cd service-registry
+mvn clean install
+java -jar target/service-registory-1.0-SNAPSHOT.jar <registry-port>
+```
+
+Registory Will run on `<registry-port>`
+
+##### 2. Load Balancer
+
+```bash
+cd ../load-balancer
+mvn clean install
+java -jar target/load-balancer-1.0-SNAPSHOT.jar <registry-ip> <registry-port> <loadBalancer-port>
+```
+
+Load Balancer Will run on `<loadBalancer-port>`
+
+##### 3. Storage Node
+
+```bash
+cd ../storage-node
+mvn clean install
+java -jar target/server-1.0-SNAPSHOT.jar <registry-ip> <registry-port> <storageNode-port>
+```
+
+Storage Node Will run on `<storageNode-port>`, can spin up multiple Storage Nodes with different ports.
+
+##### 4. Client
+
+```bash
+cd ../client
+mvn clean install
+java -jar target/client-1.0-SNAPSHOT.jar <loadBalancer-ip> <loadBalancer-port>
+```
 
 ### Commands
 
-- **Authenticate**: AUTH username:password
-- **Upload File**: PUT /path/to/file.txt
-- **Download File**: GET filename.txt
-- **Delete File**: DELETE filename.txt
-- **List Files**: LIST
-- **Exit**: EXIT
+- **`AUTH username:password`**: Login
+- **`PUT File_Path`**: Upload a file to the storage system.
+- **`GET File_Name`**: Retrieve a file from the system.
+- **`Delete File_Name`**: Remove a file from the storage system.
+- **`EXIT`**: Exit the client program
 
-## 📐 System Architecture
+## Results
 
-The system architecture is designed with multiple components that interact to provide seamless cloud storage functionality. Below is the UML diagram representing the overall architecture:
+- Successfully supports concurrent file operations.
+- Provides consistent replication and data integrity.
+- Handles node failures gracefully without disrupting user operations.
 
-### Overview:
+## Future Work
 
-![System Architecture](Diagrams/System_Overview.png)
-
-![System Architecture](Diagrams/System_Overview_2.png)
-
-<!-- ### Service Registry Interaction:
-
-![System Architecture](Diagrams/diagram.png)
-
-### File Upload Process:
-
-![System Architecture](Diagrams/UploadFile.png)
-
-### File Download Process:
-
-![System Architecture](Diagrams/DownloadFile.png)
-
-### File Deletion Process:
-
-![System Architecture](Diagrams/DeleteFIle.png) -->
+- Implement end-to-end encryption for enhanced security.
+- Add a user-friendly web-based UI.
+- Introduce dynamic load balancing
