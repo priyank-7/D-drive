@@ -49,9 +49,9 @@ public class StorageNode {
     private ServerSocket serverSocket;
     private String SELF_NODE_ID;
 
-    private static final String REGISTRY_HOST = "10.1.60.237"; // Registry service host
-    private static final int REGISTRY_PORT = 7071; // Registry service port
-    private static final String STORAGE_DIRECTORY = System.getProperty("user.home") + "/ddrive-storage";
+    private final String REGISTRY_HOST; // Registry service host
+    private final int REGISTRY_PORT; // Registry service port
+    private final String STORAGE_DIRECTORY = System.getProperty("user.home") + "/ddrive-storage";
     private long lastPingTime;
     private static final long PING_TIMEOUT = 15000; // 15 seconds
     private static final int LONG_POLLING_TIMEOUT = 60000; // 60 seconds
@@ -63,7 +63,10 @@ public class StorageNode {
     private static final ConcurrentHashMap<String, ReplicateRequest> pushReplicationData = new ConcurrentHashMap<>();
     private final BlockingQueue<ReplicateRequest> pullReplicationQueue;
 
-    public StorageNode(int port) {
+    public StorageNode(int port, String registryIP, int registryPort) {
+
+        this.REGISTRY_HOST = registryIP;
+        this.REGISTRY_PORT = registryPort;
 
         this.logger.setLevel(org.apache.logging.log4j.Level.TRACE);
         this.threadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());

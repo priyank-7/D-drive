@@ -5,7 +5,14 @@ public class Main {
         // Logger logger = LoggerFactory.getLogger(Main.class);
         // logger.info("Hello World");
 
-        Client client = new Client("10.1.48.180", 8080);
+        if (args.length < 2) {
+            System.err.println("Usage: java Main <LoadBalancer_Ip> <LoadBalancer_Port>");
+            System.exit(1);
+        }
+
+        String LoadBalancer_Ip = args[0];
+        int LoadBalancer_Port = Integer.parseInt(args[1]);
+        Client client = new Client(LoadBalancer_Ip, LoadBalancer_Port);
         client.HandelRequest();
     }
 }

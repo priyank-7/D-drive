@@ -33,6 +33,8 @@ public class LoadBalancer {
     private final UserDAO userDAO;
     private final TokenManager tokenManager;
     private final ExecutorService threadPool;
+    private final String REGISTORYIP;
+    private final int REGISTORYPORT;
 
     // TODO: update list to data structure that supports concurrent access
     private List<InetSocketAddress> storageNodes = new ArrayList<>();
@@ -48,13 +50,16 @@ public class LoadBalancer {
      * on time interval.
      */
 
-    public LoadBalancer(int port) {
+    public LoadBalancer(int port, String registryIP, int registryPort) {
+        this.REGISTORYIP = registryIP;
+        this.REGISTORYPORT = registryPort;
+
         this.logger.setLevel(Level.TRACE);
         try {
             serverSocket = new ServerSocket(port);
-            int poolSize = Runtime.getRuntime().availableProcessors(); // Or any other number based on your load
+            int poolSize = Runtime.getRuntime().availableProcessors();
             this.threadPool = Executors.newFixedThreadPool(poolSize * 4);
-            logger.info("Thread pool initilized with size: " + poolSize * 4);
+            logger.info("Thread pool initialized with size: " + poolSize * 4);
             userDAO = new UserDAO(MongoDBConnection.getDatabase("D-drive"));
             tokenManager = new TokenManager();
             // Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
@@ -65,7 +70,7 @@ public class LoadBalancer {
     }
 
     private void registerWithRegistory() {
-        try (Socket registrySocket = new Socket("10.1.60.237", 7071)) {
+        try (Socket registrySocket = new Socket(REGISTORYIP, REGISTORYPORT)) {
             ObjectOutputStream out = new ObjectOutputStream(registrySocket.getOutputStream());
             ObjectInputStream in = new ObjectInputStream(registrySocket.getInputStream());
 

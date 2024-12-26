@@ -70,7 +70,7 @@ public class Registory {
         this.logger.setLevel(org.apache.logging.log4j.Level.TRACE);
         this.serverSocket = new ServerSocket(port);
         int poolSize = Runtime.getRuntime().availableProcessors();
-        this.threadPool = Executors.newFixedThreadPool(poolSize);
+        this.threadPool = Executors.newFixedThreadPool(poolSize * 8);
         this.logger.info("Server started on port " + port);
         startHeartbeatThread();
     }

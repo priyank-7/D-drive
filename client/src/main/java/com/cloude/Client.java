@@ -266,6 +266,7 @@ public class Client {
 
             // TODO: set time out
             storageSocket.setSoTimeout(60000);
+            logger.debug("FIle Transfer started");
 
             System.out.println("[Client]: Connected to storage node");
             // Create file metadata to send to the storage node
@@ -332,6 +333,7 @@ public class Client {
         } catch (IOException | ClassNotFoundException e) {
             e.printStackTrace();
         }
+        logger.debug("FIle Transfer ended");
     }
 
     private void downloadFileFromStorageNode(String fileName, InetSocketAddress storageNodeAddress) {
