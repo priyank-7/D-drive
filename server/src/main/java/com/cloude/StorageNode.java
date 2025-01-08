@@ -1,6 +1,9 @@
 package com.cloude;
 
 import java.io.*;
+import java.lang.management.ManagementFactory;
+import java.lang.management.MemoryMXBean;
+import java.lang.management.ThreadMXBean;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -23,6 +26,7 @@ import java.util.UUID;
 import com.cloude.db.MetadataDao;
 import com.cloude.db.User;
 import com.cloude.headers.Metadata;
+import com.cloude.headers.Metrics;
 import com.cloude.headers.Request;
 import com.cloude.headers.RequestType;
 import com.cloude.headers.Response;
@@ -502,8 +506,28 @@ public class StorageNode {
 
         private void handlePingRequest() throws IOException {
             try {
+
+                // fatch Storage details
+                File storage = new File(STORAGE_DIRECTORY);
+                double freeSpace = (double) (storage.getUsableSpace() / storage.getTotalSpace()) * 100;
+
+                // fatch Memory details
+                MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+                double usedMem = (double) (memoryMXBean.getHeapMemoryUsage().getUsed()
+                        / memoryMXBean.getHeapMemoryUsage().getMax()) * 100;
+                // fatch Threads details
+                ThreadMXBean threadMXBean = ManagementFactory.getThreadMXBean();
+                int threadCount = threadMXBean.getThreadCount();
+
                 // Send a simple PONG response back to the client
-                out.writeObject(new Response(StatusCode.PONG, "PONG"));
+                out.writeObject(Response.builder()
+                        .statusCode(StatusCode.PONG)
+                        .payload(Metrics.builder()
+                                .freeSpace(freeSpace)
+                                .usedMemory(usedMem)
+                                .activeThread(threadCount)
+                                .build())
+                        .build());
                 out.flush();
             } catch (IOException e) {
                 e.printStackTrace();

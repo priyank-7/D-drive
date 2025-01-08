@@ -1,5 +1,6 @@
 package com.cloude;
 
+import com.cloude.headers.Metrics;
 import com.cloude.headers.Request;
 import com.cloude.headers.RequestType;
 import com.cloude.headers.Response;
@@ -65,6 +66,7 @@ public class Registory {
     private static final ConcurrentHashMap<String, BlockingQueue<ReplicateRequest>> messagingQueues = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, Integer> replicationAckStatus = new ConcurrentHashMap<>();
     private static final BlockingQueue<ReplicateRequest> ackList = new LinkedBlockingQueue<>();
+    private static final ConcurrentHashMap<String, Metrics> storageNodeMetrics = new ConcurrentHashMap<>();
 
     public Registory(int port) throws IOException {
         this.logger.setLevel(org.apache.logging.log4j.Level.TRACE);
@@ -180,6 +182,10 @@ public class Registory {
                 node.setStatus(NodeStatus.ACTIVE);
                 node.setLastResponse(new Date());
                 node.setFailedAttempts(0);
+
+                // TODO: add metrics details to a list
+                storageNodeMetrics.computeIfAbsent(node.getNodeId(), v -> null);
+                storageNodeMetrics.put(node.getNodeId(), (Metrics) response.getPayload());
             } else {
                 handleNodeFailure(node);
             }
